@@ -37,7 +37,7 @@ export function NavigationMobile({
 
   const navigationLinks = [
     { href: "#features", label: "Features" },
-    { href: "#security", label: "Security" },
+    { href: "#privacy", label: "Privacy Proof" },
     { href: "#about", label: "About" },
   ];
 

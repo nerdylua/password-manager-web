@@ -179,8 +179,8 @@ const Navigation = memo(({
     <Link href="#features" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
       Features
     </Link>
-    <Link href="#security" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
-      Security
+    <Link href="#privacy" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
+      Privacy Proof
     </Link>
     <Link href="#about" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
       About
@@ -612,40 +612,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features Section - Optimized lazy loading */}
+      {/* Features Section - Now includes Security Architecture */}
       <Suspense fallback={<div className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
         <ParallaxSection>
           <section id="features" className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm">
-        <div className="container mx-auto px-4">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                viewport={{ once: true, margin: "-50px" }}
-                className="text-center mb-16"
-              >
-                <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-              Everything You Need for Password Security
-            </h2>
-                <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                  Comprehensive features designed to keep your digital life secure and organized with enterprise-grade protection.
-            </p>
-              </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {features.map((feature, index) => (
-                  <FeatureCard key={index} feature={feature} index={index} />
-                ))}
-              </div>
-                </div>
-          </section>
-        </ParallaxSection>
-      </Suspense>
-
-      {/* Security Section - Optimized lazy loading */}
-      <Suspense fallback={<div className="py-20 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-950/20 dark:to-purple-950/20"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
-        <ParallaxSection>
-          <section id="security" className="py-20 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-950/20 dark:to-purple-950/20">
             <div className="container mx-auto px-4">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -655,27 +625,57 @@ export default function HomePage() {
                 className="text-center mb-16"
               >
                 <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-                  Bank-Level Security Architecture
+                  Complete Password Security Solution
                 </h2>
                 <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                  Advanced features powered by bank-level security architecture. Everything you need for password security with enterprise-grade protection.
+                </p>
+              </motion.div>
+
+              {/* Core Features */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
+                {features.map((feature, index) => (
+                  <FeatureCard key={index} feature={feature} index={index} />
+                ))}
+              </div>
+
+              {/* Security Architecture Section */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                viewport={{ once: true, margin: "-50px" }}
+                className="text-center mb-16"
+              >
+                <div className="inline-flex items-center justify-center mb-6">
+                  <Badge variant="secondary" className="bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 px-6 py-2 text-sm font-medium">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Bank-Level Security Architecture
+                  </Badge>
+                </div>
+                <h3 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-6">
+                  Military-Grade Protection
+                </h3>
+                <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-12">
                   Built with privacy-first principles and zero-knowledge architecture. Your data is encrypted before it ever leaves your device.
                 </p>
               </motion.div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+              {/* Security Features */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {securityFeatures.map((feature, index) => (
                   <SecurityFeatureCard key={index} feature={feature} index={index} />
                 ))}
               </div>
-                </div>
+            </div>
           </section>
         </ParallaxSection>
       </Suspense>
 
-      {/* Proof of Privacy Section - Optimized lazy loading */}
-      <Suspense fallback={<div className="py-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
+      {/* Proof of Privacy Section */}
+      <Suspense fallback={<div className="py-20 bg-gradient-to-br from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
         <ParallaxSection>
-          <section className="py-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+          <section id="privacy" className="py-20 bg-gradient-to-br from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20">
             <div className="container mx-auto px-4">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -685,7 +685,7 @@ export default function HomePage() {
                 className="text-center mb-16"
               >
                 <div className="inline-flex items-center justify-center mb-6">
-                  <Badge variant="secondary" className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700 px-4 py-2 text-sm font-medium">
+                  <Badge variant="secondary" className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700 px-6 py-2 text-sm font-medium">
                     <ShieldCheck className="h-4 w-4 mr-2" />
                     Proof of Privacy
                   </Badge>
@@ -694,7 +694,7 @@ export default function HomePage() {
                   See What We Actually Store
                 </h2>
                 <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                  This is what your data looks like in our database. Even our devs can't read it.
+                  This is what your data looks like in our database. Even our developers can't read it.
                 </p>
               </motion.div>
 
@@ -734,7 +734,7 @@ export default function HomePage() {
                           <span className="ml-2 text-gray-900 dark:text-white">Account #12345</span>
                         </div>
                       </div>
-                </div>
+                    </div>
                   </TrustIndicatorCard>
 
                   {/* What We See */}
@@ -785,7 +785,7 @@ export default function HomePage() {
                   </TrustIndicatorCard>
                 </div>
 
-                {/* Developer Statement */}
+                {/* Developer Guarantee */}
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -835,11 +835,11 @@ export default function HomePage() {
                         </p>
                       </div>
                     </div>
-                </div>
+                  </div>
                 </motion.div>
-          </div>
-        </div>
-      </section>
+              </div>
+            </div>
+          </section>
         </ParallaxSection>
       </Suspense>
 
@@ -975,7 +975,7 @@ export default function HomePage() {
               <h3 className="text-lg font-semibold mb-4">Product</h3>
               <ul className="space-y-2 text-gray-400">
                 <li><Link href="#features" className="hover:text-white transition-colors">Features</Link></li>
-                <li><Link href="#security" className="hover:text-white transition-colors">Security</Link></li>
+                <li><Link href="#privacy" className="hover:text-white transition-colors">Privacy Proof</Link></li>
                 <li><Link href="/auth/register" className="hover:text-white transition-colors">Get Started</Link></li>
                 <li><Link href="/auth/login" className="hover:text-white transition-colors">Sign In</Link></li>
               </ul>
