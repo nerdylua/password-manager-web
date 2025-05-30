@@ -19,6 +19,7 @@
 
 - [🎯 Problem Statement](#-problem-statement)
 - [🔒 Security Architecture](#-security-architecture)
+- [📸 Screenshots](#-screenshots)
 - [✨ Features](#-features)
 - [🚀 Quick Start](#-quick-start)
 - [🏗️ Tech Stack](#️-tech-stack)
@@ -87,6 +88,20 @@ graph TD
 - 🚫 **No plain-text** storage on servers
 - 🛡️ **Firestore security rules** prevent unauthorized access
 - 🔒 **Master password** never transmitted or stored anywhere
+
+## 📸 Screenshots
+
+<div align="center">
+
+### 🏠 Landing Page
+![CryptLock Home Page](https://github.com/user-attachments/assets/4c8f5f7d-5826-4aa6-9ef3-f5b8e6b11b7e)
+*Zero-knowledge security with beautiful, modern design*
+
+### 📊 Security Dashboard  
+![CryptLock Dashboard](https://github.com/user-attachments/assets/b8cf4c5a-5c6e-428a-a39e-64c4f5d5c556)
+*Real-time security insights and vault management*
+
+</div>
 
 ## ✨ Features
 
