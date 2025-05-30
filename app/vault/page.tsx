@@ -1659,7 +1659,11 @@ function VaultContent() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 relative">
+      <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 relative ${
+        state.loading || isAddingItem || buttonStates.refresh || buttonStates.exportVault || buttonStates.importData || buttonStates.securityAudit 
+          ? 'cursor-wait' 
+          : ''
+      }`}>
         {/* Header */}
         <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
