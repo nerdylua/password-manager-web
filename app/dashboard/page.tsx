@@ -67,8 +67,8 @@ function DashboardContent() {
       if (!masterPassword) {
         // Don't show error, just set empty array
         setVaultItems([]);
-        return;
-      }
+      return;
+    }
 
       // Load from Firebase with encryption
       const items = await VaultService.getAllItems(user.uid, masterPassword);

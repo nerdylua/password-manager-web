@@ -582,56 +582,178 @@ export default function HomePage() {
                   </div>
                 </FloatingCard>
               ))}
-                </div>
+            </div>
+          </div>
+        </section>
+      </ParallaxSection>
 
-            {/* Security Warning */}
+      {/* Proof of Privacy Section */}
+      <ParallaxSection>
+        <section className="py-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+          <div className="container mx-auto px-4">
             <motion.div 
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.8 }}
               viewport={{ once: true }}
-              className="max-w-4xl mx-auto"
+              className="text-center mb-16"
             >
-              <FloatingCard className="p-8 border-red-200 dark:border-red-800 bg-gradient-to-br from-red-50/80 to-yellow-50/80 dark:from-red-900/20 dark:to-yellow-900/20">
-                <div className="flex items-start space-x-4">
-                  <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400 flex-shrink-0 mt-1" />
-                  <div>
-                    <h3 className="text-xl font-bold text-red-900 dark:text-red-200 mb-3">
-                      ⚠️ CRITICAL: Master Password Recovery
-                    </h3>
-                    <div className="text-red-800 dark:text-red-300 space-y-3">
-                      <p className="font-semibold">
-                        Due to our zero-knowledge architecture, <strong>your master password cannot be recovered</strong> if forgotten.
-                      </p>
-                      <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-lg border border-red-300 dark:border-red-700">
-                        <h4 className="font-bold mb-2">What this means:</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm">
-                          <li><strong>Forget your master password = Lose ALL your data permanently</strong></li>
-                          <li>We cannot reset, recover, or bypass your master password</li>
-                          <li>No customer support can help you access your data</li>
-                          <li>Your encrypted vault becomes permanently inaccessible</li>
-                </ul>
-                </div>
-                      <div className="bg-yellow-100 dark:bg-yellow-900/20 p-4 rounded-lg border border-yellow-300 dark:border-yellow-700">
-                        <h4 className="font-bold mb-2 text-yellow-800 dark:text-yellow-200">Protect yourself:</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm text-yellow-800 dark:text-yellow-300">
-                          <li>Choose a master password you'll remember forever</li>
-                          <li>Write it down and store it in a safe place</li>
-                          <li>Share it with a trusted family member</li>
-                          <li>Use our password hint feature</li>
-                          <li>Practice typing it regularly</li>
-                </ul>
-                </div>
-                      <p className="text-sm font-medium">
-                        This limitation exists because true zero-knowledge security means even we cannot see your data.
-                      </p>
-                </div>
-                </div>
-                </div>
-              </FloatingCard>
+              <div className="inline-flex items-center justify-center mb-6">
+                <Badge variant="secondary" className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700 px-4 py-2 text-sm font-medium">
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  Proof of Privacy
+                </Badge>
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
+                See What We Actually Store
+              </h2>
+              <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                This is what your data looks like in our database. Even our developers can't read it.
+              </p>
             </motion.div>
-        </div>
-      </section>
+
+            <div className="max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+                {/* What You See */}
+                <FloatingCard delay={0.1} className="p-8">
+                  <div className="flex items-center mb-6">
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mr-4">
+                      <Eye className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">What You See</h3>
+                      <p className="text-green-600 dark:text-green-400 text-sm">Decrypted on your device</p>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-6 border border-green-200 dark:border-green-700">
+                    <div className="space-y-4 font-mono text-sm">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Name:</span>
+                        <span className="ml-2 text-gray-900 dark:text-white">My Bank Account</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Username:</span>
+                        <span className="ml-2 text-gray-900 dark:text-white">john.doe@email.com</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Password:</span>
+                        <span className="ml-2 text-gray-900 dark:text-white">SuperSecure123!</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">URL:</span>
+                        <span className="ml-2 text-blue-600 dark:text-blue-400">https://mybank.com</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Notes:</span>
+                        <span className="ml-2 text-gray-900 dark:text-white">Account #12345</span>
+                      </div>
+                    </div>
+                  </div>
+                </FloatingCard>
+
+                {/* What We See */}
+                <FloatingCard delay={0.2} className="p-8">
+                  <div className="flex items-center mb-6">
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center mr-4">
+                      <Database className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">What We See</h3>
+                      <p className="text-red-600 dark:text-red-400 text-sm">Encrypted in our database</p>
+                    </div>
+                  </div>
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6 border border-red-200 dark:border-red-700">
+                    <div className="space-y-4 font-mono text-sm">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">encryptedData:</span>
+                        <div className="mt-1 text-red-600 dark:text-red-400 break-all">
+                          lpjHja5qk1PLTbUxx5qwFj7X82nN4ObF...
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">nameHash:</span>
+                        <div className="mt-1 text-red-600 dark:text-red-400 break-all">
+                          51130e4b037cf06056f26309f5b581f0...
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">urlHash:</span>
+                        <div className="mt-1 text-red-600 dark:text-red-400 break-all">
+                          2b76052fdb98ca755d633dc8b42d30b9...
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">usernameHash:</span>
+                        <div className="mt-1 text-red-600 dark:text-red-400 break-all">
+                          8e2ad8d8ac2387d4906fa8eb3e44ff96...
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">iv:</span>
+                        <div className="mt-1 text-red-600 dark:text-red-400 break-all">
+                          f9f54de4a0cd1d036b7155c85d028334
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </FloatingCard>
+              </div>
+
+              {/* Developer Statement */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                viewport={{ once: true }}
+                className="text-center"
+              >
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-8 border border-blue-200 dark:border-blue-700 max-w-4xl mx-auto">
+                  <div className="flex items-center justify-center mb-6">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                      <Fingerprint className="h-8 w-8 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                    Developer Guarantee
+                  </h3>
+                  <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">
+                    Even if we wanted to, we <strong>cannot</strong> read your passwords. Your master password never leaves your device, 
+                    and without it, your data is mathematically impossible to decrypt.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center mx-auto mb-3">
+                        <Lock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Client-Side Encryption</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        All encryption happens in your browser before data is sent
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center mx-auto mb-3">
+                        <Key className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      </div>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">No Server Keys</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        We never store or have access to your decryption keys
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center mx-auto mb-3">
+                        <AlertTriangle className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Breach Protection</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Even if our servers are compromised, your data stays safe
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </section>
       </ParallaxSection>
 
       {/* About Section */}

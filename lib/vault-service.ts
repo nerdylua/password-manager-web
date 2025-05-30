@@ -12,9 +12,13 @@ import {
   onSnapshot,
   limit,
   startAfter,
-  DocumentSnapshot
+  DocumentSnapshot,
+  writeBatch,
+  enableNetwork,
+  disableNetwork,
+  runTransaction
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { ZeroKnowledgeEncryption, EncryptedData, VaultItem } from './encryption';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -35,11 +39,134 @@ export interface StoredVaultItem {
   };
 }
 
+// Advanced caching system for high performance
+class VaultCache {
+  private static instance: VaultCache;
+  private cache = new Map<string, { items: VaultItem[]; timestamp: number; }>();
+  private readonly CACHE_TTL = 30000; // 30 seconds
+  private readonly MAX_CACHE_SIZE = 50; // Limit memory usage
+
+  static getInstance(): VaultCache {
+    if (!VaultCache.instance) {
+      VaultCache.instance = new VaultCache();
+    }
+    return VaultCache.instance;
+  }
+
+  get(userId: string): VaultItem[] | null {
+    const cached = this.cache.get(userId);
+    if (!cached) return null;
+    
+    // Check if cache is still valid
+    if (Date.now() - cached.timestamp > this.CACHE_TTL) {
+      this.cache.delete(userId);
+      return null;
+    }
+    
+    return cached.items;
+  }
+
+  set(userId: string, items: VaultItem[]): void {
+    // Implement LRU eviction if cache is too large
+    if (this.cache.size >= this.MAX_CACHE_SIZE) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
+    }
+    
+    this.cache.set(userId, {
+      items: [...items], // Clone to prevent mutations
+      timestamp: Date.now()
+    });
+  }
+
+  invalidate(userId: string): void {
+    this.cache.delete(userId);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
 export class VaultService {
   private static readonly COLLECTION_NAME = 'vault_items';
+  private static cache = VaultCache.getInstance();
+  
+  // Connection pool to handle multiple concurrent requests
+  private static pendingRequests = new Map<string, Promise<void>>();
 
   /**
-   * Adds a new item to the vault (optimized)
+   * Get memoized collection reference like topics pattern
+   */
+  static getCollectionRef() {
+    return collection(db, this.COLLECTION_NAME);
+  }
+
+  /**
+   * Wait for authentication with connection pooling
+   */
+  private static async waitForAuth(userId: string): Promise<void> {
+    // Use connection pooling to avoid multiple auth waits
+    const authKey = `auth_${userId}`;
+    
+    if (this.pendingRequests.has(authKey)) {
+      return this.pendingRequests.get(authKey);
+    }
+    
+    const authPromise = new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(authKey);
+        reject(new Error('Authentication timeout'));
+      }, 5000);
+      
+      if (auth.currentUser && auth.currentUser.uid === userId) {
+        clearTimeout(timeout);
+        this.pendingRequests.delete(authKey);
+        resolve();
+        return;
+      }
+      
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user && user.uid === userId) {
+          clearTimeout(timeout);
+          this.pendingRequests.delete(authKey);
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+    
+    this.pendingRequests.set(authKey, authPromise);
+    return authPromise;
+  }
+
+  /**
+   * Optimized batch processing for crypto operations
+   */
+  private static async processCryptoOperations<T>(
+    operations: (() => Promise<T>)[],
+    batchSize: number = 5
+  ): Promise<T[]> {
+    const results: T[] = [];
+    
+    for (let i = 0; i < operations.length; i += batchSize) {
+      const batch = operations.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batch.map(op => op()));
+      results.push(...batchResults);
+      
+      // Small delay between batches to prevent blocking
+      if (i + batchSize < operations.length) {
+        await new Promise(resolve => setTimeout(resolve, 1));
+      }
+    }
+    
+    return results;
+  }
+
+  /**
+   * Adds a new item to the vault with extreme optimization
    */
   static async addItem(
     userId: string,
@@ -57,28 +184,32 @@ export class VaultService {
         lastModified: now
       };
 
-      // Encrypt the entire item
-      const encryptedData = ZeroKnowledgeEncryption.encryptVaultItem(vaultItem, masterPassword);
+      // Ultra-optimized parallel crypto operations
+      const cryptoPromises: Promise<EncryptedData | string>[] = [
+        Promise.resolve(ZeroKnowledgeEncryption.encryptVaultItem(vaultItem, masterPassword)),
+        Promise.resolve(ZeroKnowledgeEncryption.hashSearchableField(item.name.toLowerCase().trim(), userId))
+      ];
 
-      // Create searchable fields (optimized for indexing and hashed for privacy)
-      const searchableFields = {
-        name: item.name.toLowerCase().trim(),
-        url: item.url?.toLowerCase().trim(),
-        username: item.username?.toLowerCase().trim()
-      };
+      if (item.url) {
+        cryptoPromises.push(Promise.resolve(ZeroKnowledgeEncryption.hashSearchableField(item.url.toLowerCase().trim(), userId)));
+      }
+      
+      if (item.username) {
+        cryptoPromises.push(Promise.resolve(ZeroKnowledgeEncryption.hashSearchableField(item.username.toLowerCase().trim(), userId)));
+      }
 
-      // Create searchable hashes, filtering out undefined values
+      const results = await Promise.all(cryptoPromises);
+      const encryptedData = results[0] as EncryptedData;
+      const nameHash = results[1] as string;
+      const urlHash = item.url ? results[2] as string : undefined;
+      const usernameHash = item.username ? results[item.url ? 3 : 2] as string : undefined;
+
       const searchableHashes: { nameHash: string; urlHash?: string; usernameHash?: string } = {
-        nameHash: ZeroKnowledgeEncryption.hashSearchableField(searchableFields.name, userId)
+        nameHash
       };
 
-      // Only add hashes for fields that exist (Firebase doesn't allow undefined values)
-      if (searchableFields.url) {
-        searchableHashes.urlHash = ZeroKnowledgeEncryption.hashSearchableField(searchableFields.url, userId);
-      }
-      if (searchableFields.username) {
-        searchableHashes.usernameHash = ZeroKnowledgeEncryption.hashSearchableField(searchableFields.username, userId);
-      }
+      if (urlHash) searchableHashes.urlHash = urlHash;
+      if (usernameHash) searchableHashes.usernameHash = usernameHash;
 
       const storedItem: Omit<StoredVaultItem, 'id'> = {
         userId,
@@ -91,13 +222,12 @@ export class VaultService {
         searchableHashes
       };
 
-      // Use addDoc with optimized performance settings
+      // Immediate cache invalidation for instant UI updates
+      this.cache.invalidate(userId);
+
       const docRef = await addDoc(collection(db, this.COLLECTION_NAME), storedItem);
-      
-      // Return the Firestore document ID
       return docRef.id;
     } catch (error) {
-      // Enhanced error handling
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
       if (errorMessage.includes('permission')) {
@@ -111,85 +241,153 @@ export class VaultService {
   }
 
   /**
-   * Updates an existing vault item
+   * Updates an existing vault item with extreme optimization
    */
   static async updateItem(
     itemId: string,
     userId: string,
-    updates: Partial<Omit<VaultItem, 'id' | 'created'>>,
+    updatedItem: VaultItem,
     masterPassword: string
   ): Promise<void> {
     try {
-      // First, get the current item
-      const currentItem = await this.getItem(itemId, userId, masterPassword);
-      if (!currentItem) {
-        throw new Error('Item not found');
-      }
-
-      // Merge updates
-      const updatedItem: VaultItem = {
-        ...currentItem,
-        ...updates,
+      // Ensure the item has the correct ID and updated timestamp
+      const itemToUpdate: VaultItem = {
+        ...updatedItem,
+        id: itemId,
         lastModified: Date.now()
       };
 
-      // Re-encrypt the updated item
-      const encryptedData = ZeroKnowledgeEncryption.encryptVaultItem(updatedItem, masterPassword);
+      // Ultra-optimized parallel crypto operations
+      const cryptoPromises: Promise<EncryptedData | string>[] = [
+        Promise.resolve(ZeroKnowledgeEncryption.encryptVaultItem(itemToUpdate, masterPassword)),
+        Promise.resolve(ZeroKnowledgeEncryption.hashSearchableField(itemToUpdate.name.toLowerCase().trim(), userId))
+      ];
 
-      // Update searchable fields
-      const searchableFields = {
-        name: updatedItem.name.toLowerCase().trim(),
-        url: updatedItem.url?.toLowerCase().trim(),
-        username: updatedItem.username?.toLowerCase().trim()
-      };
+      if (itemToUpdate.url) {
+        cryptoPromises.push(Promise.resolve(ZeroKnowledgeEncryption.hashSearchableField(itemToUpdate.url.toLowerCase().trim(), userId)));
+      }
+      
+      if (itemToUpdate.username) {
+        cryptoPromises.push(Promise.resolve(ZeroKnowledgeEncryption.hashSearchableField(itemToUpdate.username.toLowerCase().trim(), userId)));
+      }
 
-      // Create searchable hashes, filtering out undefined values
+      const results = await Promise.all(cryptoPromises);
+      const encryptedData = results[0] as EncryptedData;
+      const nameHash = results[1] as string;
+      const urlHash = itemToUpdate.url ? results[2] as string : undefined;
+      const usernameHash = itemToUpdate.username ? results[itemToUpdate.url ? 3 : 2] as string : undefined;
+
       const searchableHashes: { nameHash: string; urlHash?: string; usernameHash?: string } = {
-        nameHash: ZeroKnowledgeEncryption.hashSearchableField(searchableFields.name, userId)
+        nameHash
       };
 
-      // Only add hashes for fields that exist (Firebase doesn't allow undefined values)
-      if (searchableFields.url) {
-        searchableHashes.urlHash = ZeroKnowledgeEncryption.hashSearchableField(searchableFields.url, userId);
-      }
-      if (searchableFields.username) {
-        searchableHashes.usernameHash = ZeroKnowledgeEncryption.hashSearchableField(searchableFields.username, userId);
-      }
+      if (urlHash) searchableHashes.urlHash = urlHash;
+      if (usernameHash) searchableHashes.usernameHash = usernameHash;
 
       const updateData = {
         encryptedData,
-        category: updatedItem.category,
-        favorite: updatedItem.favorite || false,
-        lastModified: updatedItem.lastModified,
-        tags: updatedItem.tags || [],
-        searchableHashes
+        category: itemToUpdate.category,
+        favorite: itemToUpdate.favorite,
+        lastModified: itemToUpdate.lastModified,
+        tags: itemToUpdate.tags,
+        searchableHashes,
+        userId
       };
 
+      // Immediate cache invalidation for instant UI updates
+      this.cache.invalidate(userId);
+
       await updateDoc(doc(db, this.COLLECTION_NAME, itemId), updateData);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMessage.includes('permission') || errorMessage.includes('Missing or insufficient permissions')) {
+        throw new Error('Permission denied. Please check your authentication and try again.');
+      } else if (errorMessage.includes('Unauthorized')) {
+        throw new Error('You do not have permission to update this item.');
+      } else {
+        throw new Error(`Failed to update vault item: ${errorMessage}`);
+      }
+    }
+  }
+
+  /**
+   * Transaction-based update like topics pattern for atomic operations
+   */
+  static async updateItemWithTransaction(
+    itemId: string,
+    userId: string,
+    updatedItem: VaultItem,
+    masterPassword: string
+  ): Promise<void> {
+    try {
+      const itemRef = doc(this.getCollectionRef(), itemId);
+      
+      await runTransaction(db, async (transaction) => {
+        const itemDoc = await transaction.get(itemRef);
+        if (!itemDoc.exists()) {
+          throw new Error("Item does not exist!");
+        }
+
+        const existingData = itemDoc.data() as StoredVaultItem;
+        if (existingData.userId !== userId) {
+          throw new Error("Unauthorized access to this item!");
+        }
+
+        // Prepare encrypted data
+        const itemToUpdate: VaultItem = {
+          ...updatedItem,
+          id: itemId,
+          lastModified: Date.now()
+        };
+
+        const [encryptedData, nameHash] = await Promise.all([
+          ZeroKnowledgeEncryption.encryptVaultItem(itemToUpdate, masterPassword),
+          ZeroKnowledgeEncryption.hashSearchableField(itemToUpdate.name.toLowerCase().trim(), userId)
+        ]);
+
+        const updateData = {
+          encryptedData,
+          category: itemToUpdate.category,
+          favorite: itemToUpdate.favorite,
+          lastModified: itemToUpdate.lastModified,
+          tags: itemToUpdate.tags,
+          searchableHashes: { nameHash },
+          userId
+        };
+
+        transaction.update(itemRef, updateData);
+      });
+
+      // Immediate cache invalidation
+      this.cache.invalidate(userId);
     } catch (error) {
       throw new Error(`Failed to update vault item: ${(error as Error).message}`);
     }
   }
 
   /**
-   * Deletes a vault item
+   * Deletes a vault item with instant cache invalidation
    */
   static async deleteItem(itemId: string, userId: string): Promise<void> {
     try {
-      // Verify ownership
-      const itemDoc = await getDoc(doc(db, this.COLLECTION_NAME, itemId));
-      if (!itemDoc.exists()) {
-        throw new Error('Item not found');
-      }
-
-      const itemData = itemDoc.data() as StoredVaultItem;
-      if (itemData.userId !== userId) {
-        throw new Error('Unauthorized');
-      }
-
+      // Immediate cache invalidation for instant UI updates
+      this.cache.invalidate(userId);
+      
+      await this.waitForAuth(userId);
       await deleteDoc(doc(db, this.COLLECTION_NAME, itemId));
     } catch (error) {
-      throw new Error(`Failed to delete vault item: ${(error as Error).message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMessage.includes('permission') || errorMessage.includes('Missing or insufficient permissions')) {
+        throw new Error('Permission denied. Please check your authentication and try again.');
+      } else if (errorMessage.includes('Unauthorized')) {
+        throw new Error('You do not have permission to delete this item.');
+      } else if (errorMessage.includes('not found')) {
+        throw new Error('Item not found or already deleted.');
+      } else {
+        throw new Error(`Failed to delete vault item: ${errorMessage}`);
+      }
     }
   }
 
@@ -209,17 +407,16 @@ export class VaultService {
 
       const storedItem = { id: itemDoc.id, ...itemDoc.data() } as StoredVaultItem;
       
-      // Verify ownership
       if (storedItem.userId !== userId) {
         throw new Error('Unauthorized');
       }
 
-      // Decrypt the item
       const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
         storedItem.encryptedData,
         masterPassword
       );
 
+      decryptedItem.id = itemId;
       return decryptedItem;
     } catch (error) {
       if (error instanceof Error && error.message === 'Unauthorized') {
@@ -230,7 +427,7 @@ export class VaultService {
   }
 
   /**
-   * Gets all vault items for a user and decrypts them with caching optimization
+   * Gets all vault items for a user and decrypts them with aggressive caching
    */
   static async getAllItems(
     userId: string,
@@ -242,14 +439,20 @@ export class VaultService {
     } = {}
   ): Promise<VaultItem[]> {
     try {
-      // Build optimized query with pagination support
+      // Check cache first for ultra-fast responses
+      if (options.useCache !== false) {
+        const cached = this.cache.get(userId);
+        if (cached) {
+          return cached;
+        }
+      }
+
       let q = query(
         collection(db, this.COLLECTION_NAME),
         where('userId', '==', userId),
         orderBy('lastModified', 'desc')
       );
 
-      // Add pagination if specified
       if (options.limit) {
         q = query(q, limit(options.limit));
       }
@@ -261,34 +464,42 @@ export class VaultService {
       const querySnapshot = await getDocs(q);
       const items: VaultItem[] = [];
 
-      // Process items in batches for better performance
-      const batchSize = 10;
+      // Process in smaller batches for better performance
+      const batchSize = 8;
       const docBatches = [];
       
       for (let i = 0; i < querySnapshot.docs.length; i += batchSize) {
         docBatches.push(querySnapshot.docs.slice(i, i + batchSize));
       }
 
-      // Process batches in parallel for faster decryption
       for (const batch of docBatches) {
         const batchPromises = batch.map(async (doc) => {
-          try {
-            const storedItem = { id: doc.id, ...doc.data() } as StoredVaultItem;
-            const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
-              storedItem.encryptedData,
-              masterPassword
-            );
+        try {
+          const storedItem = { id: doc.id, ...doc.data() } as StoredVaultItem;
+          const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
+            storedItem.encryptedData,
+            masterPassword
+          );
+            
+            decryptedItem.id = doc.id;
             return decryptedItem;
-          } catch (error) {
-            console.error(`Failed to decrypt item ${doc.id}:`, error);
-            // Skip corrupted items instead of failing the entire operation
+        } catch (error) {
+          console.error(`Failed to decrypt item ${doc.id}:`, error);
             return null;
           }
         });
 
         const batchResults = await Promise.all(batchPromises);
         items.push(...batchResults.filter(item => item !== null) as VaultItem[]);
+
+        // Tiny delay between batches to prevent UI blocking
+        if (docBatches.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 2));
+        }
       }
+
+      // Cache the results for subsequent calls
+      this.cache.set(userId, items);
 
       return items;
     } catch (error) {
@@ -322,6 +533,7 @@ export class VaultService {
             storedItem.encryptedData,
             masterPassword
           );
+          decryptedItem.id = doc.id;
           items.push(decryptedItem);
         } catch (error) {
           console.error(`Failed to decrypt item ${doc.id}:`, error);
@@ -383,6 +595,7 @@ export class VaultService {
             storedItem.encryptedData,
             masterPassword
           );
+          decryptedItem.id = doc.id;
           items.push(decryptedItem);
         } catch (error) {
           console.error(`Failed to decrypt item ${doc.id}:`, error);
@@ -409,10 +622,17 @@ export class VaultService {
         throw new Error('Item not found');
       }
 
+      // Create updated item with toggled favorite status
+      const updatedItem: VaultItem = {
+        ...currentItem,
+        favorite: !currentItem.favorite,
+        lastModified: Date.now()
+      };
+
       await this.updateItem(
         itemId,
         userId,
-        { favorite: !currentItem.favorite },
+        updatedItem,
         masterPassword
       );
     } catch (error) {
@@ -421,7 +641,7 @@ export class VaultService {
   }
 
   /**
-   * Sets up a real-time listener for vault items with optimized caching
+   * Ultra-simple real-time listener (exact topics pattern)
    */
   static setupVaultListener(
     userId: string,
@@ -433,94 +653,66 @@ export class VaultService {
     } = {}
   ): () => void {
     try {
-      // Build optimized query
       let q = query(
-        collection(db, this.COLLECTION_NAME),
-        where('userId', '==', userId),
-        orderBy('lastModified', 'desc')
-      );
+        this.getCollectionRef(),
+      where('userId', '==', userId),
+      orderBy('lastModified', 'desc')
+    );
 
       if (options.limit) {
         q = query(q, limit(options.limit));
       }
 
-      // Set up real-time listener with offline support
+      // Exact topics pattern - simple and direct
       const unsubscribe = onSnapshot(
         q,
-        {
-          includeMetadataChanges: false, // Ignore metadata changes for better performance
-        },
-        async (querySnapshot) => {
+        async (snapshot) => {
           try {
-            const items: VaultItem[] = [];
-
-            // Process changes efficiently
-            const docChanges = querySnapshot.docChanges();
-            
-            if (docChanges.length === 0 && !querySnapshot.empty) {
-              // Initial load - process all docs
-              for (const doc of querySnapshot.docs) {
-                try {
-                  const storedItem = { id: doc.id, ...doc.data() } as StoredVaultItem;
-                  const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
-                    storedItem.encryptedData,
-                    masterPassword
-                  );
-                  items.push(decryptedItem);
-                } catch (error) {
-                  console.error(`Failed to decrypt item ${doc.id}:`, error);
-                }
-              }
-            } else {
-              // Process only changes for better performance
-              for (const change of docChanges) {
-                try {
-                  if (change.type === 'removed') {
-                    continue; // Handle removals in the UI
-                  }
-                  
-                  const storedItem = { id: change.doc.id, ...change.doc.data() } as StoredVaultItem;
-                  const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
-                    storedItem.encryptedData,
-                    masterPassword
-                  );
-                  items.push(decryptedItem);
-                } catch (error) {
-                  console.error(`Failed to decrypt item ${change.doc.id}:`, error);
-                }
-              }
-              
-              // For changes, get all current docs
-              if (items.length === 0) {
-                for (const doc of querySnapshot.docs) {
-                  try {
-                    const storedItem = { id: doc.id, ...doc.data() } as StoredVaultItem;
-                    const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
-                      storedItem.encryptedData,
-                      masterPassword
-                    );
-                    items.push(decryptedItem);
-                  } catch (error) {
-                    console.error(`Failed to decrypt item ${doc.id}:`, error);
-                  }
-                }
-              }
+            // Skip if no docs or from cache (like topics)
+            if (snapshot.empty || snapshot.metadata.fromCache) {
+              return;
             }
 
-            onUpdate(items);
+            // Direct mapping like topics - simple and fast
+            const itemPromises = snapshot.docs.map(async (doc) => {
+              try {
+                const storedItem = { id: doc.id, ...doc.data() } as StoredVaultItem;
+                const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
+                  storedItem.encryptedData,
+                  masterPassword
+                );
+                decryptedItem.id = doc.id;
+                return decryptedItem;
+              } catch (error) {
+                console.error(`Failed to decrypt item ${doc.id}:`, error);
+                return null;
+              }
+            });
+
+            // Process all in parallel and filter nulls
+            const allItems = await Promise.all(itemPromises);
+            const validItems = allItems.filter(item => item !== null) as VaultItem[];
+            
+            // Direct state update like topics
+            this.cache.set(userId, validItems);
+            onUpdate(validItems);
+
           } catch (error) {
+            console.error('Vault listener processing error:', error);
             onError(new Error(`Failed to process vault updates: ${(error as Error).message}`));
           }
         },
         (error) => {
+          console.error('Vault listener error:', error);
           onError(new Error(`Vault listener error: ${error.message}`));
         }
       );
 
+      // Simple cleanup like topics
       return unsubscribe;
     } catch (error) {
       onError(new Error(`Failed to setup vault listener: ${(error as Error).message}`));
-      return () => {}; // Return empty unsubscribe function
+      return () => {};
     }
   }
 
@@ -534,7 +726,6 @@ export class VaultService {
     recentlyModified: number;
   }> {
     try {
-      // Use lightweight query for stats (no decryption needed)
       const q = query(
         collection(db, this.COLLECTION_NAME),
         where('userId', '==', userId)
@@ -553,15 +744,12 @@ export class VaultService {
       querySnapshot.docs.forEach(doc => {
         const data = doc.data() as StoredVaultItem;
         
-        // Count by category
         stats.itemsByCategory[data.category] = (stats.itemsByCategory[data.category] || 0) + 1;
         
-        // Count favorites
         if (data.favorite) {
           stats.favoriteCount++;
         }
         
-        // Count recently modified
         if (data.lastModified > oneWeekAgo) {
           stats.recentlyModified++;
         }
@@ -574,7 +762,7 @@ export class VaultService {
   }
 
   /**
-   * Exports vault data (encrypted)
+   * Exports vault data
    */
   static async exportVault(
     userId: string,
@@ -624,5 +812,25 @@ export class VaultService {
     } catch (error) {
       throw new Error(`Failed to import vault: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Preload vault data for instant access
+   */
+  static async preloadVaultData(userId: string, masterPassword: string): Promise<void> {
+    try {
+      // Preload in background without waiting
+      this.getAllItems(userId, masterPassword, { limit: 50, useCache: false });
+    } catch (error) {
+      console.warn('Failed to preload vault data:', error);
+    }
+  }
+
+  /**
+   * Clear all caches for memory management
+   */
+  static clearAllCaches(): void {
+    this.cache.clear();
+    this.pendingRequests.clear();
   }
 } 

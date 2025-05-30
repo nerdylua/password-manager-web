@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { VaultItem } from '@/lib/encryption';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,7 @@ interface AddItemModalProps {
   onClose: () => void;
   onSave: (item: Partial<VaultItem>) => Promise<void>;
   editingItem?: VaultItem | null;
+  isLoading?: boolean;
 }
 
 interface PasswordGeneratorSettings {
@@ -52,7 +53,7 @@ const defaultPasswordSettings: PasswordGeneratorSettings = {
   excludeSimilar: true
 };
 
-export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: AddItemModalProps) {
+export default React.memo(function AddItemModal({ isOpen, onClose, onSave, editingItem, isLoading }: AddItemModalProps) {
   const [activeTab, setActiveTab] = useState('login');
   const [formData, setFormData] = useState<Partial<VaultItem>>({
     name: '',
@@ -81,6 +82,9 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: '' });
   const [saving, setSaving] = useState(false);
+  
+  // Instant button feedback state
+  const [isSubmitClicked, setIsSubmitClicked] = useState(false);
 
   // Reset form when modal opens/closes or editing item changes
   useEffect(() => {
@@ -115,6 +119,7 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
       }
       setShowPassword(false);
       setGeneratedPassword('');
+      setIsSubmitClicked(false); // Reset instant feedback state
     }
   }, [isOpen, editingItem]);
 
@@ -123,8 +128,40 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
     setFormData(prev => ({ ...prev, category: activeTab as VaultItem['category'] }));
   }, [activeTab]);
 
+  // Analyze password strength (optimized)
+  const analyzePasswordStrength = useCallback((password: string) => {
+    let score = 0;
+    const feedback = [];
+
+    // Length checks
+    if (password.length >= 8) score += 1;
+    else feedback.push('Use at least 8 characters');
+    if (password.length >= 12) score += 1;
+
+    // Character type checks (optimized regex)
+    if (/[a-z]/.test(password)) score += 1;
+    else feedback.push('Include lowercase letters');
+
+    if (/[A-Z]/.test(password)) score += 1;
+    else feedback.push('Include uppercase letters');
+
+    if (/\d/.test(password)) score += 1;
+    else feedback.push('Include numbers');
+
+    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    else feedback.push('Include symbols');
+
+    const strengthLevels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'];
+    const strengthLevel = strengthLevels[Math.min(score, 5)];
+
+    setPasswordStrength({
+      score,
+      feedback: feedback.length > 0 ? feedback.join(', ') : `${strengthLevel} password`
+    });
+  }, []);
+
   // Generate password (optimized for performance)
-  const generatePassword = () => {
+  const generatePassword = useCallback(() => {
     const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const lowercase = 'abcdefghijklmnopqrstuvwxyz';
     const numbers = '0123456789';
@@ -158,67 +195,38 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
     setGeneratedPassword(password);
     analyzePasswordStrength(password);
     toast.success('Password generated successfully');
-  };
-
-  // Analyze password strength (optimized)
-  const analyzePasswordStrength = (password: string) => {
-    let score = 0;
-    const feedback = [];
-
-    // Length checks
-    if (password.length >= 8) score += 1;
-    else feedback.push('Use at least 8 characters');
-    if (password.length >= 12) score += 1;
-
-    // Character type checks (optimized regex)
-    if (/[a-z]/.test(password)) score += 1;
-    else feedback.push('Include lowercase letters');
-
-    if (/[A-Z]/.test(password)) score += 1;
-    else feedback.push('Include uppercase letters');
-
-    if (/\d/.test(password)) score += 1;
-    else feedback.push('Include numbers');
-
-    if (/[^A-Za-z0-9]/.test(password)) score += 1;
-    else feedback.push('Include symbols');
-
-    const strengthLevels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'];
-    const strengthLevel = strengthLevels[Math.min(score, 5)];
-
-    setPasswordStrength({
-      score,
-      feedback: feedback.length > 0 ? feedback.join(', ') : `${strengthLevel} password`
-    });
-  };
+  }, [passwordSettings, analyzePasswordStrength]);
 
   // Use generated password
-  const useGeneratedPassword = () => {
+  const useGeneratedPassword = useCallback(() => {
     if (generatedPassword) {
       setFormData(prev => ({ ...prev, password: generatedPassword }));
       setGeneratedPassword('');
       toast.success('Password applied');
     }
-  };
+  }, [generatedPassword]);
 
   // Copy to clipboard
-  const copyToClipboard = async (text: string, label: string) => {
+  const copyToClipboard = useCallback(async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
       toast.success(`${label} copied to clipboard`);
     } catch {
       toast.error('Failed to copy to clipboard');
     }
-  };
+  }, []);
 
   // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name?.trim()) {
       toast.error('Name is required');
       return;
     }
+
+    // Instant visual feedback - turn button gray immediately
+    setIsSubmitClicked(true);
 
     // Set loading state at the start of submission
     setSaving(true);
@@ -239,21 +247,193 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
       // Error toast is handled in the parent component
       console.error('Failed to save item:', error);
     } finally {
-      // Always reset loading state
+      // Always reset loading states
       setSaving(false);
+      setIsSubmitClicked(false);
     }
-  };
+  }, [formData, activeTab, editingItem, onSave, onClose]);
 
-  const handleInputChange = (field: keyof VaultItem, value: string | boolean) => {
+  // Input change handler with validation (memoized for performance)
+  const handleInputChange = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Analyze password strength when password changes
+    // Real-time password strength analysis for login forms
     if (field === 'password' && value) {
-      analyzePasswordStrength(value as string);
+      analyzePasswordStrength(value);
     }
-  };
+  }, [analyzePasswordStrength]);
 
-  const renderPasswordGenerator = () => (
+  // Separate handler for favorite toggle (boolean values)
+  const handleFavoriteToggle = useCallback((checked: boolean) => {
+    setFormData(prev => ({ ...prev, favorite: checked }));
+  }, []);
+
+  // Credit card specific handlers with validation and formatting
+  const handleCardNumberChange = useCallback((value: string) => {
+    // Remove all non-digit characters
+    const digitsOnly = value.replace(/\D/g, '');
+    
+    // Limit to 19 digits (longest card number format)
+    const truncated = digitsOnly.slice(0, 19);
+    
+    // Format with spaces every 4 digits
+    const formatted = truncated.replace(/(\d{4})(?=\d)/g, '$1 ');
+    
+    setFormData(prev => ({ ...prev, cardNumber: formatted }));
+  }, []);
+
+  const handleExpiryDateChange = useCallback((value: string) => {
+    // Remove all non-digit characters
+    const digitsOnly = value.replace(/\D/g, '');
+    
+    // Limit to 4 digits (MMYY)
+    const truncated = digitsOnly.slice(0, 4);
+    
+    // Format as MM/YY
+    let formatted = truncated;
+    if (truncated.length >= 3) {
+      formatted = `${truncated.slice(0, 2)}/${truncated.slice(2)}`;
+    }
+    
+    // Basic validation
+    if (truncated.length >= 2) {
+      const month = parseInt(truncated.slice(0, 2));
+      if (month < 1 || month > 12) {
+        // Don't update if invalid month
+        return;
+      }
+    }
+    
+    setFormData(prev => ({ ...prev, expiryDate: formatted }));
+  }, []);
+
+  // Validate expiry date
+  const validateExpiryDate = useCallback((expiryDate: string) => {
+    if (!expiryDate || expiryDate.length !== 5) return null;
+    
+    const [month, year] = expiryDate.split('/');
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = parseInt(currentDate.getFullYear().toString().slice(-2));
+    
+    const expMonth = parseInt(month);
+    const expYear = parseInt(year);
+    
+    if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) {
+      return { isValid: false, message: 'Card has expired' };
+    }
+    
+    return { isValid: true, message: 'Valid expiry date' };
+  }, []);
+
+  // Get expiry validation
+  const expiryValidation = useMemo(() => {
+    return validateExpiryDate(formData.expiryDate || '');
+  }, [formData.expiryDate, validateExpiryDate]);
+
+  const handleCvvChange = useCallback((value: string) => {
+    // Remove all non-digit characters
+    const digitsOnly = value.replace(/\D/g, '');
+    
+    // Limit to 4 digits (American Express can have 4-digit CVV)
+    const truncated = digitsOnly.slice(0, 4);
+    
+    setFormData(prev => ({ ...prev, cvv: truncated }));
+  }, []);
+
+  const handleCardholderNameChange = useCallback((value: string) => {
+    // Allow only letters, spaces, hyphens, and apostrophes
+    const filtered = value.replace(/[^a-zA-Z\s\-']/g, '');
+    
+    // Limit to reasonable length
+    const truncated = filtered.slice(0, 50);
+    
+    setFormData(prev => ({ ...prev, cardholderName: truncated }));
+  }, []);
+
+  // Card type detection
+  const detectCardType = useCallback((cardNumber: string) => {
+    const number = cardNumber.replace(/\s/g, '');
+    
+    if (/^4/.test(number)) return { type: 'Visa', color: 'text-blue-600' };
+    if (/^5[1-5]/.test(number) || /^2[2-7]/.test(number)) return { type: 'Mastercard', color: 'text-red-600' };
+    if (/^3[47]/.test(number)) return { type: 'American Express', color: 'text-green-600' };
+    if (/^6/.test(number)) return { type: 'Discover', color: 'text-orange-600' };
+    if (/^30[0-5]/.test(number) || /^36/.test(number) || /^38/.test(number)) return { type: 'Diners Club', color: 'text-purple-600' };
+    
+    return { type: '', color: '' };
+  }, []);
+
+  // Get current card type
+  const cardType = useMemo(() => {
+    return detectCardType(formData.cardNumber || '');
+  }, [formData.cardNumber, detectCardType]);
+
+  // Luhn algorithm for credit card validation
+  const luhnCheck = useCallback((cardNumber: string) => {
+    const number = cardNumber.replace(/\s/g, '');
+    
+    // Must be at least 13 digits
+    if (number.length < 13 || !/^\d+$/.test(number)) {
+      return false;
+    }
+    
+    let sum = 0;
+    let isEven = false;
+    
+    // Loop through digits from right to left
+    for (let i = number.length - 1; i >= 0; i--) {
+      let digit = parseInt(number.charAt(i));
+      
+      if (isEven) {
+        digit *= 2;
+        if (digit > 9) {
+          digit -= 9;
+        }
+      }
+      
+      sum += digit;
+      isEven = !isEven;
+    }
+    
+    return (sum % 10) === 0;
+  }, []);
+
+  // Validate card number
+  const validateCardNumber = useCallback((cardNumber: string) => {
+    if (!cardNumber) return null;
+    
+    const digits = cardNumber.replace(/\s/g, '');
+    
+    if (digits.length < 13) {
+      return { isValid: false, message: 'Card number too short' };
+    }
+    
+    if (digits.length > 19) {
+      return { isValid: false, message: 'Card number too long' };
+    }
+    
+    if (!luhnCheck(cardNumber)) {
+      return { isValid: false, message: 'Invalid card number' };
+    }
+    
+    return { isValid: true, message: 'Valid card number' };
+  }, [luhnCheck]);
+
+  // Get card number validation
+  const cardNumberValidation = useMemo(() => {
+    const cardNumber = formData.cardNumber || '';
+    const digits = cardNumber.replace(/\s/g, '');
+    
+    // Only validate if we have enough digits to make a meaningful check
+    if (digits.length >= 13) {
+      return validateCardNumber(cardNumber);
+    }
+    
+    return null;
+  }, [formData.cardNumber, validateCardNumber]);
+
+  const renderPasswordGenerator = useMemo(() => (
     <Card className="mt-4">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm flex items-center">
@@ -356,7 +536,7 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
         )}
       </CardContent>
     </Card>
-  );
+  ), [passwordSettings, generatePassword, generatedPassword, copyToClipboard, useGeneratedPassword, passwordStrength]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -471,7 +651,7 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
                   <div className="flex items-center space-x-2 pt-2">
                     <Switch
                       checked={formData.favorite || false}
-                      onCheckedChange={(checked: boolean) => handleInputChange('favorite', checked)}
+                      onCheckedChange={handleFavoriteToggle}
                     />
                     <Label className="flex items-center">
                       <Star className="w-4 h-4 mr-1" />
@@ -480,7 +660,7 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
                   </div>
                 </div>
 
-                {renderPasswordGenerator()}
+                {renderPasswordGenerator}
               </TabsContent>
 
               <TabsContent value="secure-note" className="space-y-6">
@@ -510,7 +690,7 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
                   <div className="flex items-center space-x-2 pt-2">
                     <Switch
                       checked={formData.favorite || false}
-                      onCheckedChange={(checked: boolean) => handleInputChange('favorite', checked)}
+                      onCheckedChange={handleFavoriteToggle}
                     />
                     <Label className="flex items-center">
                       <Star className="w-4 h-4 mr-1" />
@@ -538,18 +718,52 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
                       id="cardholder"
                       placeholder="John Doe"
                       value={formData.cardholderName || ''}
-                      onChange={(e) => handleInputChange('cardholderName', e.target.value)}
+                      onChange={(e) => handleCardholderNameChange(e.target.value)}
+                      maxLength={50}
+                      autoComplete="cc-name"
                     />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Enter the name as it appears on the card
+                    </p>
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="card-number">Card Number</Label>
-                    <Input
-                      id="card-number"
-                      placeholder="1234 5678 9012 3456"
-                      value={formData.cardNumber || ''}
-                      onChange={(e) => handleInputChange('cardNumber', e.target.value)}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="card-number"
+                        placeholder="1234 5678 9012 3456"
+                        value={formData.cardNumber || ''}
+                        onChange={(e) => handleCardNumberChange(e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="cc-number"
+                        maxLength={23}
+                        className={`${cardType.type ? 'pr-20' : ''} ${
+                          cardNumberValidation?.isValid === false ? 'border-red-500' : 
+                          cardNumberValidation?.isValid === true ? 'border-green-500' : ''
+                        }`}
+                      />
+                      {cardType.type && (
+                        <div className={`absolute right-3 top-1/2 transform -translate-y-1/2 text-sm font-medium ${cardType.color}`}>
+                          {cardType.type}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Enter 13-19 digits (spaces will be added automatically)
+                      </p>
+                      {formData.cardNumber && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {(formData.cardNumber || '').replace(/\s/g, '').length} digits
+                        </p>
+                      )}
+                    </div>
+                    {cardNumberValidation && (
+                      <p className={`text-xs ${cardNumberValidation.isValid ? 'text-green-600' : 'text-red-600'}`}>
+                        {cardNumberValidation.message}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -559,8 +773,22 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
                         id="expiry"
                         placeholder="MM/YY"
                         value={formData.expiryDate || ''}
-                        onChange={(e) => handleInputChange('expiryDate', e.target.value)}
+                        onChange={(e) => handleExpiryDateChange(e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="cc-exp"
+                        maxLength={5}
+                        className={expiryValidation?.isValid === false ? 'border-red-500' : ''}
                       />
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Month/Year format
+                        </p>
+                        {expiryValidation && (
+                          <p className={`text-xs ${expiryValidation.isValid ? 'text-green-600' : 'text-red-600'}`}>
+                            {expiryValidation.message}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="cvv">CVV</Label>
@@ -568,8 +796,15 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
                         id="cvv"
                         placeholder="123"
                         value={formData.cvv || ''}
-                        onChange={(e) => handleInputChange('cvv', e.target.value)}
+                        onChange={(e) => handleCvvChange(e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="cc-csc"
+                        maxLength={4}
+                        type="password"
                       />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        3-4 digits on back of card
+                      </p>
                     </div>
                   </div>
 
@@ -587,7 +822,7 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
                   <div className="flex items-center space-x-2 pt-2">
                     <Switch
                       checked={formData.favorite || false}
-                      onCheckedChange={(checked: boolean) => handleInputChange('favorite', checked)}
+                      onCheckedChange={handleFavoriteToggle}
                     />
                     <Label className="flex items-center">
                       <Star className="w-4 h-4 mr-1" />
@@ -685,7 +920,7 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
                   <div className="flex items-center space-x-2 pt-2">
                     <Switch
                       checked={formData.favorite || false}
-                      onCheckedChange={(checked: boolean) => handleInputChange('favorite', checked)}
+                      onCheckedChange={handleFavoriteToggle}
                     />
                     <Label className="flex items-center">
                       <Star className="w-4 h-4 mr-1" />
@@ -698,18 +933,19 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
           </Tabs>
 
           <DialogFooter className="space-x-2 pt-6 border-t">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isLoading || saving || isSubmitClicked}>
               Cancel
             </Button>
             <Button 
               type="submit" 
-              disabled={saving}
+              disabled={isLoading || saving || isSubmitClicked}
+              className={`min-w-[120px] ${isSubmitClicked ? 'bg-gray-400 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-600' : ''}`}
             >
-              {saving ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  {editingItem ? 'Updating...' : 'Adding...'}
-                </>
+              {(isLoading || saving || isSubmitClicked) ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>{editingItem ? 'Updating...' : 'Adding...'}</span>
+                </div>
               ) : (
                 editingItem ? 'Update Item' : 'Add Item'
               )}
@@ -719,4 +955,4 @@ export default function AddItemModal({ isOpen, onClose, onSave, editingItem }: A
       </DialogContent>
     </Dialog>
   );
-} 
+}); 

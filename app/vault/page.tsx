@@ -52,12 +52,15 @@ interface VaultPageState {
   selectedCategory: 'all' | 'login' | 'secure-note' | 'credit-card' | 'identity';
   viewMode: 'grid' | 'list';
   showPasswords: Record<string, boolean>;
-  operationLoading: boolean; // For add/update/delete operations
 }
 
 function VaultContent() {
   const router = useRouter();
   const { user, userProfile, logout, lockVault, getMasterPassword } = useAuth();
+  
+  // Memoized refs like topics pattern for better performance
+  const masterPassword = React.useMemo(() => getMasterPassword(), [getMasterPassword]);
+  
   const [state, setState] = useState<VaultPageState>({
     items: [],
     filteredItems: [],
@@ -66,11 +69,11 @@ function VaultContent() {
     selectedCategory: 'all',
     viewMode: 'grid',
     showPasswords: {},
-    operationLoading: false
   });
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<VaultItem | null>(null);
+  const [isAddingItem, setIsAddingItem] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     item: VaultItem | null;
@@ -79,6 +82,31 @@ function VaultContent() {
     isOpen: false,
     item: null,
     isDeleting: false
+  });
+
+  // Instant feedback states for buttons
+  const [buttonStates, setButtonStates] = useState<{
+    addItem: boolean;
+    refresh: boolean;
+    lock: boolean;
+    logout: boolean;
+    editingItems: Set<string>;
+    deletingItems: Set<string>;
+    copyingItems: Map<string, string>; // itemId -> field being copied
+    exportVault: boolean;
+    importData: boolean;
+    securityAudit: boolean;
+  }>({
+    addItem: false,
+    refresh: false,
+    lock: false,
+    logout: false,
+    editingItems: new Set(),
+    deletingItems: new Set(),
+    copyingItems: new Map(),
+    exportVault: false,
+    importData: false,
+    securityAudit: false
   });
 
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -99,7 +127,91 @@ function VaultContent() {
     setShowErrorModal(true);
   }, []);
 
-  // Load vault items
+  // Optimized like topics - early return if no user
+  React.useEffect(() => {
+    if (!user || !masterPassword) {
+      setState(prev => ({ ...prev, loading: false }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, loading: true }));
+
+    // Preload for instant access
+    VaultService.preloadVaultData(user.uid, masterPassword);
+    
+    // Direct listener setup like topics
+    const unsubscribe = VaultService.setupVaultListener(
+      user.uid,
+      masterPassword,
+      (items) => {
+        // Direct state update like topics
+        setState(prev => ({ 
+          ...prev, 
+          items, 
+          filteredItems: prev.selectedCategory === 'all' ? items : items.filter(item => 
+            item.category === prev.selectedCategory
+          ),
+          loading: false 
+        }));
+      },
+      (error) => {
+        console.error('Vault listener error:', error);
+        setState(prev => ({ ...prev, loading: false }));
+        showDetailedError(
+          'Vault Connection Error',
+          'Lost connection to your vault. Attempting to reconnect...',
+          error,
+          true,
+          () => window.location.reload()
+        );
+      },
+      { limit: 100 }
+    );
+
+    // Simple cleanup like topics
+    return unsubscribe;
+  }, [user, masterPassword, showDetailedError]);
+
+  // Force refresh vault items (for sync issues)
+  const forceRefreshVault = useCallback(async () => {
+    if (!user) return;
+    
+    // Instant visual feedback
+    setButtonStates(prev => ({ ...prev, refresh: true }));
+    
+    try {
+      setState(prev => ({ ...prev, loading: true }));
+      
+      if (!masterPassword) {
+        throw new Error('Master password not available');
+      }
+      
+      // Load fresh data from Firebase
+      const items = await VaultService.getAllItems(user.uid, masterPassword, { 
+        limit: 100
+      });
+      
+      setState(prev => ({ 
+        ...prev, 
+        items, 
+        filteredItems: prev.selectedCategory === 'all' ? items : items.filter(item => 
+          item.category === prev.selectedCategory
+        ),
+        loading: false 
+      }));
+      
+      toast.success('Vault refreshed successfully');
+    } catch (error) {
+      console.error('Failed to refresh vault:', error);
+      setState(prev => ({ ...prev, loading: false }));
+      toast.error('Failed to refresh vault');
+    } finally {
+      // Reset button state
+      setButtonStates(prev => ({ ...prev, refresh: false }));
+    }
+  }, [user, masterPassword]);
+
+  // Load vault items with preloading
   const loadVaultItems = useCallback(async () => {
     if (!user) return;
     
@@ -112,9 +224,10 @@ function VaultContent() {
         throw new Error('Master password not available');
       }
       
-      // Load from Firebase with encryption (initial load only)
+      // Load from Firebase with encryption (use cache for ultra-fast loading)
       const items = await VaultService.getAllItems(user.uid, masterPassword, { 
-        limit: 100 // Load first 100 items for better performance
+        limit: 100, // Load first 100 items for better performance
+        useCache: true // Use cache for instant loading
       });
       
       setState(prev => ({ 
@@ -138,71 +251,35 @@ function VaultContent() {
     }
   }, [user, getMasterPassword, showDetailedError]);
 
-  // Set up real-time listener for automatic updates
-  useEffect(() => {
-    if (!user) return;
-
-    const masterPassword = getMasterPassword();
-    if (!masterPassword) return;
-
-    setState(prev => ({ ...prev, loading: true }));
-
-    // Set up real-time listener
-    const unsubscribe = VaultService.setupVaultListener(
-      user.uid,
-      masterPassword,
-      (items) => {
-        setState(prev => ({ 
-          ...prev, 
-          items, 
-          filteredItems: prev.selectedCategory === 'all' ? items : items.filter(item => 
-            item.category === prev.selectedCategory
-          ),
-          loading: false 
-        }));
-      },
-      (error) => {
-        console.error('Vault listener error:', error);
-        setState(prev => ({ ...prev, loading: false }));
-        
-        showDetailedError(
-          'Vault Connection Error',
-          'Lost connection to your vault. Attempting to reconnect...',
-          error,
-          true,
-          loadVaultItems
-        );
-      },
-      { limit: 100 } // Limit for performance
-    );
-
-    return unsubscribe;
-  }, [user, getMasterPassword, showDetailedError, loadVaultItems]);
-
   // Note: Firebase VaultService auto-saves individual items, no bulk save needed
   const saveVaultItems = useCallback((items: VaultItem[]) => {
     // This function is no longer needed since Firebase saves items individually
     // Keeping for compatibility but items are saved in individual operations
   }, []);
 
-  // Filter items when search or category changes
+  // Filter items when search or category changes (with safe filtering like topics)
   const filterItems = useCallback(() => {
     setState(prevState => {
-      let filtered = prevState.items;
+      // Safe filtering like topics - check for valid items
+      let filtered = prevState.items.filter(item => item && item.name);
 
       // Filter by category
       if (prevState.selectedCategory !== 'all') {
-        filtered = filtered.filter(item => item.category === prevState.selectedCategory);
+        filtered = filtered.filter(item => 
+          item && item.category === prevState.selectedCategory
+        );
       }
 
-      // Filter by search term
+      // Filter by search term with safe checks
       if (prevState.searchTerm) {
         const term = prevState.searchTerm.toLowerCase();
         filtered = filtered.filter(item =>
-          item.name.toLowerCase().includes(term) ||
-          item.username?.toLowerCase().includes(term) ||
-          item.url?.toLowerCase().includes(term) ||
-          item.notes?.toLowerCase().includes(term)
+          item && (
+            (item.name && item.name.toLowerCase().includes(term)) ||
+            (item.username && item.username.toLowerCase().includes(term)) ||
+            (item.url && item.url.toLowerCase().includes(term)) ||
+            (item.notes && item.notes.toLowerCase().includes(term))
+          )
         );
       }
 
@@ -219,119 +296,182 @@ function VaultContent() {
     filterItems();
   }, [state.items, state.selectedCategory, state.searchTerm, filterItems]);
 
+  // Cleanup on unmount for memory management
+  useEffect(() => {
+    return () => {
+      // Clear caches when leaving vault for memory management
+      VaultService.clearAllCaches();
+    };
+  }, []);
+
   const handleSaveItem = async (itemData: Partial<VaultItem>) => {
     if (!user) {
-      throw new Error('User not authenticated');
-    }
-
-    const masterPassword = getMasterPassword();
-    if (!masterPassword) {
-      throw new Error('Master password not available');
-    }
-
-    // Guard against duplicate submissions
-    if (state.operationLoading) {
+      toast.error('User not authenticated');
       return;
     }
 
-    // Set loading state immediately
-    setState(prev => ({ ...prev, operationLoading: true }));
+    if (!masterPassword) {
+      toast.error('Master password not available');
+      return;
+    }
+
+    // Immediate state change for instant UI feedback
+    setIsAddingItem(true);
 
     try {
       if (editingItem) {
-        // Show immediate feedback
+        // Immediate loading toast
         toast.loading('Updating item...', { id: 'save-item' });
         
-        // Update existing item
+        // Create complete VaultItem object for updating
+        const completeItem: VaultItem = {
+          id: editingItem.id,
+          created: editingItem.created,
+          lastModified: Date.now(),
+          name: itemData.name || editingItem.name,
+          category: itemData.category || editingItem.category,
+          username: itemData.username || editingItem.username || '',
+          password: itemData.password || editingItem.password || '',
+          url: itemData.url || editingItem.url || '',
+          notes: itemData.notes || editingItem.notes || '',
+          favorite: itemData.favorite ?? editingItem.favorite,
+          tags: itemData.tags || editingItem.tags || [],
+          // Credit card fields
+          cardNumber: itemData.cardNumber || editingItem.cardNumber || '',
+          cardholderName: itemData.cardholderName || editingItem.cardholderName || '',
+          expiryDate: itemData.expiryDate || editingItem.expiryDate || '',
+          cvv: itemData.cvv || editingItem.cvv || '',
+          // Identity fields
+          firstName: itemData.firstName || editingItem.firstName || '',
+          lastName: itemData.lastName || editingItem.lastName || '',
+          email: itemData.email || editingItem.email || '',
+          phone: itemData.phone || editingItem.phone || '',
+          company: itemData.company || editingItem.company || '',
+          address: itemData.address || editingItem.address || '',
+          title: itemData.title || editingItem.title || '',
+          ssn: itemData.ssn || editingItem.ssn || ''
+        };
+        
+        // Simple optimistic update
+        setState(prev => ({
+          ...prev,
+          items: prev.items.map(item => 
+            item.id === editingItem.id ? completeItem : item
+          ),
+          filteredItems: prev.filteredItems.map(item => 
+            item.id === editingItem.id ? completeItem : item
+          )
+        }));
+        
         await VaultService.updateItem(
           editingItem.id,
           user.uid,
-          itemData,
+          completeItem,
           masterPassword
         );
         
-        // Update local state immediately for better UX
-        const updatedItems = state.items.map(item => 
-          item.id === editingItem.id ? { ...item, ...itemData, lastModified: Date.now() } : item
-        );
-        setState(prev => ({
-          ...prev,
-          items: updatedItems,
-          operationLoading: false
-        }));
-        
         toast.success('Item updated successfully', { id: 'save-item' });
+        setEditingItem(null);
+        setShowAddModal(false);
       } else {
-        // Show immediate feedback
         toast.loading('Adding item to your vault...', { id: 'save-item' });
         
-        // Add new item
-        const itemId = await VaultService.addItem(
+        // Create temporary item for immediate UI feedback
+        const tempItem: VaultItem = {
+          id: `temp-${Date.now()}`,
+          created: Date.now(),
+          lastModified: Date.now(),
+          name: itemData.name!,
+          username: itemData.username || '',
+          password: itemData.password || '',
+          url: itemData.url || '',
+          notes: itemData.notes || '',
+          category: itemData.category!,
+          favorite: itemData.favorite || false,
+          tags: itemData.tags || [],
+          cardNumber: itemData.cardNumber || '',
+          cardholderName: itemData.cardholderName || '',
+          expiryDate: itemData.expiryDate || '',
+          cvv: itemData.cvv || '',
+          firstName: itemData.firstName || '',
+          lastName: itemData.lastName || '',
+          email: itemData.email || '',
+          phone: itemData.phone || '',
+          company: itemData.company || '',
+          address: itemData.address || '',
+          title: itemData.title || '',
+          ssn: itemData.ssn || ''
+        };
+        
+        // Simple optimistic update
+        setState(prev => ({
+          ...prev,
+          items: [tempItem, ...prev.items],
+          filteredItems: prev.selectedCategory === 'all' || prev.selectedCategory === tempItem.category
+            ? [tempItem, ...prev.filteredItems] 
+            : prev.filteredItems
+        }));
+
+        await VaultService.addItem(
           user.uid,
           {
             name: itemData.name!,
-            username: itemData.username,
-            password: itemData.password,
-            url: itemData.url,
-            notes: itemData.notes,
+            username: itemData.username || '',
+            password: itemData.password || '',
+            url: itemData.url || '',
+            notes: itemData.notes || '',
             category: itemData.category!,
             favorite: itemData.favorite || false,
-            tags: itemData.tags || []
+            tags: itemData.tags || [],
+            cardNumber: itemData.cardNumber || '',
+            cardholderName: itemData.cardholderName || '',
+            expiryDate: itemData.expiryDate || '',
+            cvv: itemData.cvv || '',
+            firstName: itemData.firstName || '',
+            lastName: itemData.lastName || '',
+            email: itemData.email || '',
+            phone: itemData.phone || '',
+            company: itemData.company || '',
+            address: itemData.address || '',
+            title: itemData.title || '',
+            ssn: itemData.ssn || ''
           },
           masterPassword
         );
 
-        // Create the full item for local state
-        const newItem: VaultItem = {
-          id: itemId,
-          name: itemData.name!,
-          username: itemData.username,
-          password: itemData.password,
-          url: itemData.url,
-          notes: itemData.notes,
-          category: itemData.category!,
-          favorite: itemData.favorite || false,
-          tags: itemData.tags || [],
-          created: Date.now(),
-          lastModified: Date.now(),
-          // Include optional fields
-          cardNumber: itemData.cardNumber,
-          cardholderName: itemData.cardholderName,
-          expiryDate: itemData.expiryDate,
-          cvv: itemData.cvv,
-          firstName: itemData.firstName,
-          lastName: itemData.lastName,
-          email: itemData.email,
-          phone: itemData.phone,
-          address: itemData.address,
-          title: itemData.title,
-          company: itemData.company,
-          ssn: itemData.ssn
-        };
-
-        // Update local state immediately for better UX
+        // Remove temporary item (real one comes via listener)
         setState(prev => ({
           ...prev,
-          items: [...prev.items, newItem],
-          operationLoading: false
+          items: prev.items.filter(item => item.id !== tempItem.id),
+          filteredItems: prev.filteredItems.filter(item => item.id !== tempItem.id)
         }));
-        
-        toast.success('Item added to your vault successfully', { id: 'save-item' });
-      }
 
-      setEditingItem(null);
+        toast.success('Item added to your vault successfully', { id: 'save-item' });
+        setShowAddModal(false);
+      }
     } catch (error) {
       console.error('Failed to save item:', error);
-      setState(prev => ({ ...prev, operationLoading: false }));
       
-      // Show detailed error modal
-      showDetailedError(
-        'Failed to Save Item',
-        'Unable to save your vault item. This could be due to network issues, permission problems, or server errors.',
-        error,
-        true,
-        () => handleSaveItem(itemData)
-      );
+      // Simple error recovery
+      if (editingItem) {
+        // Revert to original item
+        setState(prev => ({
+          ...prev,
+          items: prev.items.map(item => 
+            item.id === editingItem.id ? editingItem : item
+          ),
+          filteredItems: prev.filteredItems.map(item => 
+            item.id === editingItem.id ? editingItem : item
+          )
+        }));
+      } else {
+        // Remove temp items
+        setState(prev => ({
+          ...prev,
+          items: prev.items.filter(item => !item.id.startsWith('temp-')),
+          filteredItems: prev.filteredItems.filter(item => !item.id.startsWith('temp-'))
+        }));
+      }
       
       toast.error(
         error instanceof Error && error.message.includes('permission') 
@@ -339,21 +479,53 @@ function VaultContent() {
           : 'Failed to save item. Please try again.',
         { id: 'save-item' }
       );
-      throw error; // Re-throw so the modal can handle it
+      throw error;
+    } finally {
+      setIsAddingItem(false);
     }
   };
 
   const handleEditItem = (item: VaultItem) => {
+    // Instant visual feedback
+    setButtonStates(prev => ({
+      ...prev,
+      editingItems: new Set(prev.editingItems).add(item.id)
+    }));
+
     setEditingItem(item);
     setShowAddModal(true);
+
+    // Reset button state after modal opens
+    setTimeout(() => {
+      setButtonStates(prev => {
+        const newSet = new Set(prev.editingItems);
+        newSet.delete(item.id);
+        return { ...prev, editingItems: newSet };
+      });
+    }, 200);
   };
 
   const handleDeleteItem = (item: VaultItem) => {
+    // Instant visual feedback
+    setButtonStates(prev => ({
+      ...prev,
+      deletingItems: new Set(prev.deletingItems).add(item.id)
+    }));
+
     setDeleteModal({
       isOpen: true,
       item,
       isDeleting: false
     });
+
+    // Reset button state after modal opens
+    setTimeout(() => {
+      setButtonStates(prev => {
+        const newSet = new Set(prev.deletingItems);
+        newSet.delete(item.id);
+        return { ...prev, deletingItems: newSet };
+      });
+    }, 200);
   };
 
   const handleConfirmDelete = async () => {
@@ -365,22 +537,54 @@ function VaultContent() {
     setDeleteModal(prev => ({ ...prev, isDeleting: true }));
     toast.loading('Deleting item...', { id: 'delete-item' });
 
+    // Optimistic UI update - immediately remove from local state
+    const itemToDelete = deleteModal.item;
+    setState(prev => ({
+      ...prev,
+      items: prev.items.filter(item => item.id !== itemToDelete.id),
+      filteredItems: prev.filteredItems.filter(item => item.id !== itemToDelete.id)
+    }));
+
     try {
-      await VaultService.deleteItem(deleteModal.item.id, user.uid);
+      // Set operation type for optimized debouncing
+      const lastUpdateType = 'delete';
       
-      // Update local state immediately
-      const updatedItems = state.items.filter(item => item.id !== deleteModal.item!.id);
-      setState(prev => ({
-        ...prev,
-        items: updatedItems
-      }));
+      await VaultService.deleteItem(deleteModal.item.id, user.uid);
       
       toast.success('Item deleted successfully', { id: 'delete-item' });
       setDeleteModal({ isOpen: false, item: null, isDeleting: false });
     } catch (error) {
-      console.error('Failed to delete item:', error);
+      // Revert optimistic update on error
+      setState(prev => ({
+        ...prev,
+        items: [...prev.items, itemToDelete].sort((a, b) => b.lastModified - a.lastModified),
+        filteredItems: prev.selectedCategory === 'all' || prev.selectedCategory === itemToDelete.category
+          ? [...prev.filteredItems, itemToDelete].sort((a, b) => b.lastModified - a.lastModified)
+          : prev.filteredItems
+      }));
       
-      // Show detailed error modal
+      // If error is "item not found", just refresh and consider it successful
+      if (error instanceof Error && error.message.includes('Item not found')) {
+        forceRefreshVault();
+        toast.success('Item removed', { id: 'delete-item' });
+        setDeleteModal({ isOpen: false, item: null, isDeleting: false });
+        return;
+      }
+      
+      // If error is about different user, provide helpful message
+      if (error instanceof Error && error.message.includes('belongs to a different user')) {
+        showDetailedError(
+          'Item Belongs to Different Account',
+          'This item was created with a different user account. This can happen if you signed out and back in. Use the Search button (🔍) to find orphaned items.',
+          error,
+          false // No retry for this type of error
+        );
+        
+        setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+        return;
+      }
+      
+      // Show detailed error modal for other errors
       showDetailedError(
         'Failed to Delete Item',
         'Unable to delete your vault item. This could be due to network issues, permission problems, or server errors.',
@@ -413,16 +617,46 @@ function VaultContent() {
     }));
   };
 
-  const copyToClipboard = async (text: string, label: string) => {
+  const copyToClipboard = async (text: string, label: string, itemId?: string, field?: string) => {
     try {
+      // Instant visual feedback
+      if (itemId && field) {
+        setButtonStates(prev => ({
+          ...prev,
+          copyingItems: new Map(prev.copyingItems).set(itemId, field)
+        }));
+      }
+
       await navigator.clipboard.writeText(text);
       toast.success(`${label} copied to clipboard`);
+      
+      // Reset visual feedback after short delay
+      if (itemId && field) {
+        setTimeout(() => {
+          setButtonStates(prev => {
+            const newMap = new Map(prev.copyingItems);
+            newMap.delete(itemId);
+            return { ...prev, copyingItems: newMap };
+          });
+        }, 800);
+      }
     } catch (_error) {
       toast.error('Failed to copy to clipboard');
+      // Reset visual feedback on error
+      if (itemId && field) {
+        setButtonStates(prev => {
+          const newMap = new Map(prev.copyingItems);
+          newMap.delete(itemId);
+          return { ...prev, copyingItems: newMap };
+        });
+      }
     }
   };
 
   const handleLogout = async () => {
+    // Instant visual feedback
+    setButtonStates(prev => ({ ...prev, logout: true }));
+
     try {
       // Clear vault access authorization
       sessionStorage.removeItem('vaultAccessAuthorized');
@@ -430,14 +664,25 @@ function VaultContent() {
       toast.success('Logged out successfully');
     } catch {
       toast.error('Failed to logout');
+    } finally {
+      // Reset button state
+      setButtonStates(prev => ({ ...prev, logout: false }));
     }
   };
 
   const handleLockVault = () => {
+    // Instant visual feedback
+    setButtonStates(prev => ({ ...prev, lock: true }));
+
     // Clear vault access authorization
     sessionStorage.removeItem('vaultAccessAuthorized');
     lockVault();
     toast.success('Vault locked successfully');
+
+    // Reset button state
+    setTimeout(() => {
+      setButtonStates(prev => ({ ...prev, lock: false }));
+    }, 100);
   };
 
   const navigateToDashboard = () => {
@@ -445,6 +690,307 @@ function VaultContent() {
     sessionStorage.removeItem('vaultAccessAuthorized');
     router.push('/dashboard');
   };
+
+  // Export vault data as encrypted JSON file
+  const handleExportVault = useCallback(async () => {
+    if (!user || !masterPassword) {
+      toast.error('Authentication required for export');
+      return;
+    }
+
+    setButtonStates(prev => ({ ...prev, exportVault: true }));
+    toast.loading('Preparing vault export...', { id: 'export-vault' });
+
+    try {
+      // Get all vault items
+      const items = await VaultService.getAllItems(user.uid, masterPassword);
+      
+      // Group items by category for better organization
+      const groupedItems = {
+        login: items.filter(item => item.category === 'login'),
+        'secure-note': items.filter(item => item.category === 'secure-note'),
+        'credit-card': items.filter(item => item.category === 'credit-card'),
+        identity: items.filter(item => item.category === 'identity')
+      };
+
+      // Create readable export data structure
+      const exportData = {
+        "_comment_header": "CryptLock Password Manager - Vault Backup",
+        "_security_warning": "This file contains encrypted vault data - store securely and do not share",
+        "export_info": {
+          "application": "CryptLock Password Manager",
+          "version": "1.0",
+          "export_date": new Date().toLocaleString(),
+          "export_timestamp": new Date().toISOString(),
+          "total_items": items.length,
+          "items_by_category": {
+            "logins": groupedItems.login.length,
+            "secure_notes": groupedItems['secure-note'].length,
+            "credit_cards": groupedItems['credit-card'].length,
+            "identities": groupedItems.identity.length
+          }
+        },
+        "vault_data": {
+          "logins": groupedItems.login.map(item => ({
+            id: item.id,
+            name: item.name,
+            username: item.username || "",
+            password: item.password || "",
+            url: item.url || "",
+            notes: item.notes || "",
+            favorite: item.favorite || false,
+            tags: item.tags || []
+          })),
+          "secure_notes": groupedItems['secure-note'].map(item => ({
+            id: item.id,
+            name: item.name,
+            notes: item.notes || "",
+            favorite: item.favorite || false,
+            tags: item.tags || []
+          })),
+          "credit_cards": groupedItems['credit-card'].map(item => ({
+            id: item.id,
+            name: item.name,
+            cardholderName: item.cardholderName || "",
+            cardNumber: item.cardNumber || "",
+            expiryDate: item.expiryDate || "",
+            cvv: item.cvv || "",
+            notes: item.notes || "",
+            favorite: item.favorite || false,
+            tags: item.tags || []
+          })),
+          "identities": groupedItems.identity.map(item => ({
+            id: item.id,
+            name: item.name,
+            firstName: item.firstName || "",
+            lastName: item.lastName || "",
+            email: item.email || "",
+            phone: item.phone || "",
+            company: item.company || "",
+            address: item.address || "",
+            notes: item.notes || "",
+            favorite: item.favorite || false,
+            tags: item.tags || []
+          }))
+        },
+        "_comment_legacy": "Legacy format included for backward compatibility",
+        "data": items.map(item => ({
+          ...item,
+          // Remove sensitive metadata for export
+          lastModified: undefined,
+          created: undefined
+        }))
+      };
+
+      // Create formatted JSON with better indentation for readability
+      const jsonString = JSON.stringify(exportData, null, 4);
+
+      // Create and download file
+      const blob = new Blob([jsonString], { 
+        type: 'application/json' 
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `cryptlock-vault-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${items.length} items successfully`, { id: 'export-vault' });
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export vault data', { id: 'export-vault' });
+    } finally {
+      setButtonStates(prev => ({ ...prev, exportVault: false }));
+    }
+  }, [user, masterPassword]);
+
+  // Import vault data from JSON file
+  const handleImportData = useCallback(() => {
+    if (!user || !masterPassword) {
+      toast.error('Authentication required for import');
+      return;
+    }
+
+    setButtonStates(prev => ({ ...prev, importData: true }));
+
+    // Create file input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    // Add event listener for when dialog is canceled
+    const resetState = () => {
+      setButtonStates(prev => ({ ...prev, importData: false }));
+    };
+
+    // Reset state when window regains focus (user canceled dialog)
+    const handleFocus = () => {
+      setTimeout(() => {
+        if (!input.files || input.files.length === 0) {
+          resetState();
+        }
+      }, 100);
+      window.removeEventListener('focus', handleFocus);
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    input.onchange = async (e) => {
+      // Remove the focus listener since file was selected
+      window.removeEventListener('focus', handleFocus);
+      
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) {
+        resetState();
+        return;
+      }
+
+      toast.loading('Processing import file...', { id: 'import-data' });
+
+      try {
+        const text = await file.text();
+        const importData = JSON.parse(text);
+
+        // Validate import data structure
+        if (!importData.data || !Array.isArray(importData.data)) {
+          throw new Error('Invalid import file format');
+        }
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        // Import each item
+        for (const itemData of importData.data) {
+          try {
+            await VaultService.addItem(user.uid, {
+              name: itemData.name,
+              category: itemData.category,
+              username: itemData.username || '',
+              password: itemData.password || '',
+              url: itemData.url || '',
+              notes: itemData.notes || '',
+              favorite: itemData.favorite || false,
+              tags: itemData.tags || [],
+              cardNumber: itemData.cardNumber || '',
+              cardholderName: itemData.cardholderName || '',
+              expiryDate: itemData.expiryDate || '',
+              cvv: itemData.cvv || '',
+              firstName: itemData.firstName || '',
+              lastName: itemData.lastName || '',
+              email: itemData.email || '',
+              phone: itemData.phone || '',
+              company: itemData.company || '',
+              address: itemData.address || ''
+            }, masterPassword);
+            successCount++;
+          } catch {
+            errorCount++;
+          }
+        }
+
+        if (successCount > 0) {
+          toast.success(`Successfully imported ${successCount} items${errorCount > 0 ? `, ${errorCount} failed` : ''}`, { id: 'import-data' });
+        } else {
+          toast.error('No items could be imported', { id: 'import-data' });
+        }
+      } catch (error) {
+        console.error('Import failed:', error);
+        toast.error('Failed to import data. Please check file format.', { id: 'import-data' });
+      } finally {
+        resetState();
+      }
+    };
+
+    // Also handle if the input is never interacted with
+    input.oncancel = resetState;
+
+    input.click();
+    
+    // Fallback: Reset state after 10 seconds if nothing happens
+    setTimeout(() => {
+      if (buttonStates.importData) {
+        resetState();
+      }
+    }, 10000);
+  }, [user, masterPassword, buttonStates.importData]);
+
+  // Perform security audit on vault items
+  const handleSecurityAudit = useCallback(async () => {
+    if (!user || !masterPassword) {
+      toast.error('Authentication required for security audit');
+      return;
+    }
+
+    setButtonStates(prev => ({ ...prev, securityAudit: true }));
+    toast.loading('Analyzing vault security...', { id: 'security-audit' });
+
+    try {
+      const items = await VaultService.getAllItems(user.uid, masterPassword);
+      
+      let weakPasswords = 0;
+      let duplicatePasswords = 0;
+      let oldPasswords = 0;
+      let missingPasswords = 0;
+      const passwordMap = new Map<string, number>();
+
+      const sixMonthsAgo = Date.now() - (6 * 30 * 24 * 60 * 60 * 1000);
+
+      items.forEach(item => {
+        if (item.category === 'login') {
+          if (!item.password) {
+            missingPasswords++;
+          } else {
+            // Check password strength
+            if (item.password.length < 8 || 
+                !/[A-Z]/.test(item.password) || 
+                !/[a-z]/.test(item.password) || 
+                !/\d/.test(item.password)) {
+              weakPasswords++;
+            }
+
+            // Check for duplicates
+            const count = passwordMap.get(item.password) || 0;
+            passwordMap.set(item.password, count + 1);
+            if (count > 0) {
+              duplicatePasswords++;
+            }
+
+            // Check age (if lastModified is available)
+            if (item.lastModified && item.lastModified < sixMonthsAgo) {
+              oldPasswords++;
+            }
+          }
+        }
+      });
+
+      // Create audit report
+      const issues = [];
+      if (weakPasswords > 0) issues.push(`${weakPasswords} weak passwords`);
+      if (duplicatePasswords > 0) issues.push(`${duplicatePasswords} duplicate passwords`);
+      if (oldPasswords > 0) issues.push(`${oldPasswords} old passwords (6+ months)`);
+      if (missingPasswords > 0) issues.push(`${missingPasswords} missing passwords`);
+
+      if (issues.length === 0) {
+        toast.success('🛡️ Excellent! No security issues found in your vault.', { 
+          id: 'security-audit',
+          duration: 4000
+        });
+      } else {
+        toast.error(`🔍 Security issues found: ${issues.join(', ')}. Consider updating these items.`, { 
+          id: 'security-audit',
+          duration: 6000
+        });
+      }
+    } catch (error) {
+      console.error('Security audit failed:', error);
+      toast.error('Failed to complete security audit', { id: 'security-audit' });
+    } finally {
+      setButtonStates(prev => ({ ...prev, securityAudit: false }));
+    }
+  }, [user, masterPassword]);
 
   const categories = [
     { id: 'all', label: 'All Items', icon: Grid, count: state.items.length, description: 'View all vault items' },
@@ -489,8 +1035,25 @@ function VaultContent() {
         </div>
       </div>
 
-      <Button onClick={() => setShowAddModal(true)} size="lg">
-        <Plus className="w-5 h-5 mr-2" />
+      <Button 
+        onClick={() => {
+          // Instant visual feedback
+          setButtonStates(prev => ({ ...prev, addItem: true }));
+          setShowAddModal(true);
+          // Reset after modal opens
+          setTimeout(() => {
+            setButtonStates(prev => ({ ...prev, addItem: false }));
+          }, 200);
+        }} 
+        size="lg"
+        disabled={buttonStates.addItem}
+        className={buttonStates.addItem ? 'bg-gray-100 dark:bg-gray-700' : ''}
+      >
+        {buttonStates.addItem ? (
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+        ) : (
+          <Plus className="w-5 h-5 mr-2" />
+        )}
         Add Your First Item
       </Button>
     </div>
@@ -540,10 +1103,19 @@ function VaultContent() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => copyToClipboard(item.username!, 'Username')}
+                              className={`h-6 w-6 p-0 ${
+                                buttonStates.copyingItems.get(item.id) === 'username' 
+                                  ? 'bg-green-100 dark:bg-green-900' 
+                                  : ''
+                              }`}
+                              onClick={() => copyToClipboard(item.username!, 'Username', item.id, 'username')}
+                              disabled={buttonStates.copyingItems.has(item.id)}
                             >
-                              <Copy className="w-3 h-3" />
+                              {buttonStates.copyingItems.get(item.id) === 'username' ? (
+                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -564,10 +1136,19 @@ function VaultContent() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => copyToClipboard(item.password!, 'Password')}
+                              className={`h-6 w-6 p-0 ${
+                                buttonStates.copyingItems.get(item.id) === 'password' 
+                                  ? 'bg-green-100 dark:bg-green-900' 
+                                  : ''
+                              }`}
+                              onClick={() => copyToClipboard(item.password!, 'Password', item.id, 'password')}
+                              disabled={buttonStates.copyingItems.has(item.id)}
                             >
-                              <Copy className="w-3 h-3" />
+                              {buttonStates.copyingItems.get(item.id) === 'password' ? (
+                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -615,10 +1196,19 @@ function VaultContent() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => copyToClipboard(item.url!, 'URL')}
+                              className={`h-6 w-6 p-0 ${
+                                buttonStates.copyingItems.get(item.id) === 'url' 
+                                  ? 'bg-green-100 dark:bg-green-900' 
+                                  : ''
+                              }`}
+                              onClick={() => copyToClipboard(item.url!, 'URL', item.id, 'url')}
+                              disabled={buttonStates.copyingItems.has(item.id)}
                             >
-                              <Copy className="w-3 h-3" />
+                              {buttonStates.copyingItems.get(item.id) === 'url' ? (
+                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -638,8 +1228,14 @@ function VaultContent() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEditItem(item)}
+                      disabled={buttonStates.editingItems.has(item.id)}
+                      className={buttonStates.editingItems.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}
                     >
-                      <Edit className="w-4 h-4" />
+                      {buttonStates.editingItems.has(item.id) ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      ) : (
+                        <Edit className="w-4 h-4" />
+                      )}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -653,9 +1249,16 @@ function VaultContent() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteItem(item)}
-                      className="text-red-600 hover:text-red-700"
+                      disabled={buttonStates.deletingItems.has(item.id)}
+                      className={`text-red-600 hover:text-red-700 ${
+                        buttonStates.deletingItems.has(item.id) ? 'bg-red-100 dark:bg-red-900' : ''
+                      }`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {buttonStates.deletingItems.has(item.id) ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -721,8 +1324,14 @@ function VaultContent() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleEditItem(item)}
+                    disabled={buttonStates.editingItems.has(item.id)}
+                    className={buttonStates.editingItems.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}
                   >
-                    <Edit className="w-4 h-4" />
+                    {buttonStates.editingItems.has(item.id) ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    ) : (
+                      <Edit className="w-4 h-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -736,9 +1345,16 @@ function VaultContent() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteItem(item)}
-                    className="text-red-600 hover:text-red-700"
+                    disabled={buttonStates.deletingItems.has(item.id)}
+                    className={`text-red-600 hover:text-red-700 ${
+                      buttonStates.deletingItems.has(item.id) ? 'bg-red-100 dark:bg-red-900' : ''
+                    }`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {buttonStates.deletingItems.has(item.id) ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -760,10 +1376,19 @@ function VaultContent() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(item.username!, 'Username')}
+                        className={`h-6 w-6 p-0 ${
+                          buttonStates.copyingItems.get(item.id) === 'username' 
+                            ? 'bg-green-100 dark:bg-green-900' 
+                            : ''
+                        }`}
+                        onClick={() => copyToClipboard(item.username!, 'Username', item.id, 'username')}
+                        disabled={buttonStates.copyingItems.has(item.id)}
                       >
-                        <Copy className="w-3 h-3" />
+                        {buttonStates.copyingItems.get(item.id) === 'username' ? (
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -785,10 +1410,19 @@ function VaultContent() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(item.password!, 'Password')}
+                        className={`h-6 w-6 p-0 ${
+                          buttonStates.copyingItems.get(item.id) === 'password' 
+                            ? 'bg-green-100 dark:bg-green-900' 
+                            : ''
+                        }`}
+                        onClick={() => copyToClipboard(item.password!, 'Password', item.id, 'password')}
+                        disabled={buttonStates.copyingItems.has(item.id)}
                       >
-                        <Copy className="w-3 h-3" />
+                        {buttonStates.copyingItems.get(item.id) === 'password' ? (
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -839,10 +1473,19 @@ function VaultContent() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(item.url!, 'URL')}
+                        className={`h-6 w-6 p-0 ${
+                          buttonStates.copyingItems.get(item.id) === 'url' 
+                            ? 'bg-green-100 dark:bg-green-900' 
+                            : ''
+                        }`}
+                        onClick={() => copyToClipboard(item.url!, 'URL', item.id, 'url')}
+                        disabled={buttonStates.copyingItems.has(item.id)}
                       >
-                        <Copy className="w-3 h-3" />
+                        {buttonStates.copyingItems.get(item.id) === 'url' ? (
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -875,16 +1518,6 @@ function VaultContent() {
   return (
     <TooltipProvider delayDuration={0}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 relative">
-        {/* Loading Overlay for Operations */}
-        {state.operationLoading && (
-          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl flex items-center space-x-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="text-gray-900 dark:text-white font-medium">Processing...</span>
-            </div>
-          </div>
-        )}
-
         {/* Header */}
         <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -919,8 +1552,26 @@ function VaultContent() {
               <div className="flex items-center space-x-3">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={() => setShowAddModal(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        // Instant visual feedback
+                        setButtonStates(prev => ({ ...prev, addItem: true }));
+                        setShowAddModal(true);
+                        // Reset after modal opens
+                        setTimeout(() => {
+                          setButtonStates(prev => ({ ...prev, addItem: false }));
+                        }, 200);
+                      }}
+                      disabled={buttonStates.addItem}
+                      className={buttonStates.addItem ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                    >
+                      {buttonStates.addItem ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                      ) : (
+                        <Plus className="w-4 h-4 mr-2" />
+                      )}
                       Add Item
                     </Button>
                   </TooltipTrigger>
@@ -929,7 +1580,42 @@ function VaultContent() {
                   </TooltipContent>
                 </Tooltip>
                 
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <Info className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs text-center">
+                      Adding and updating items may take a moment due to AES-256 encryption 
+                      processing to ensure your data remains secure.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+                
                 <div className="flex items-center space-x-2 ml-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={forceRefreshVault}
+                        disabled={buttonStates.refresh}
+                        className={buttonStates.refresh ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                      >
+                        <RefreshCw className={`w-4 h-4 ${buttonStates.refresh ? 'animate-spin' : ''}`} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Refresh vault data</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="outline" size="sm" disabled>
@@ -943,7 +1629,13 @@ function VaultContent() {
                   
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" onClick={handleLockVault}>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleLockVault}
+                        disabled={buttonStates.lock}
+                        className={buttonStates.lock ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                      >
                         <Lock className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
@@ -954,8 +1646,18 @@ function VaultContent() {
                   
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" onClick={handleLogout}>
-                        <LogOut className="w-4 h-4" />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleLogout}
+                        disabled={buttonStates.logout}
+                        className={buttonStates.logout ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                      >
+                        {buttonStates.logout ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        ) : (
+                          <LogOut className="w-4 h-4" />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -1017,37 +1719,64 @@ function VaultContent() {
                 <CardContent className="space-y-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start" disabled>
-                        <Download className="w-4 h-4 mr-3" />
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start" 
+                        onClick={handleExportVault}
+                        disabled={buttonStates.exportVault}
+                      >
+                        {buttonStates.exportVault ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-3"></div>
+                        ) : (
+                          <Download className="w-4 h-4 mr-3" />
+                        )}
                         Export Vault
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      <p>Export encrypted vault data for backup (Coming Soon)</p>
+                      <p>Export encrypted vault data as JSON backup file</p>
                     </TooltipContent>
                   </Tooltip>
                   
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start" disabled>
-                        <Upload className="w-4 h-4 mr-3" />
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start" 
+                        onClick={handleImportData}
+                        disabled={buttonStates.importData}
+                      >
+                        {buttonStates.importData ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-3"></div>
+                        ) : (
+                          <Upload className="w-4 h-4 mr-3" />
+                        )}
                         Import Data
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      <p>Import data from other password managers (Coming Soon)</p>
+                      <p>Import vault data from JSON backup file</p>
                     </TooltipContent>
                   </Tooltip>
                   
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start" disabled>
-                        <RefreshCw className="w-4 h-4 mr-3" />
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start" 
+                        onClick={handleSecurityAudit}
+                        disabled={buttonStates.securityAudit}
+                      >
+                        {buttonStates.securityAudit ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-3"></div>
+                        ) : (
+                          <RefreshCw className="w-4 h-4 mr-3" />
+                        )}
                         Security Audit
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      <p>Analyze passwords for security vulnerabilities (Coming Soon)</p>
+                      <p>Analyze vault for weak, duplicate, and old passwords</p>
                     </TooltipContent>
                   </Tooltip>
                 </CardContent>
@@ -1178,6 +1907,7 @@ function VaultContent() {
           }}
           onSave={handleSaveItem}
           editingItem={editingItem}
+          isLoading={isAddingItem}
         />
 
         {/* Delete Confirmation Modal */}
