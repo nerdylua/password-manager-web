@@ -177,14 +177,14 @@ const Navigation = memo(({
     isCompact ? "h-16" : "h-20"
   )}>
     <Link href="#features" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
-      Features
-    </Link>
+              Features
+            </Link>
     <Link href="#privacy" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
       Privacy Proof
     </Link>
     <Link href="#about" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
       About
-    </Link>
+            </Link>
     
     {user ? (
       <>
@@ -213,17 +213,17 @@ const Navigation = memo(({
     ) : (
       <>
         <Link href="/auth/login" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
-          Sign In
-        </Link>
-        <Link href="/auth/register">
+              Sign In
+            </Link>
+            <Link href="/auth/register">
           <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300">
             Get Started Free
           </Button>
-        </Link>
+            </Link>
       </>
     )}
     <ThemeToggle />
-  </nav>
+          </nav>
 ));
 
 Navigation.displayName = 'Navigation';
@@ -444,7 +444,7 @@ export default function HomePage() {
                 isScrolled={isScrolled}
               />
             </div>
-          </div>
+        </div>
         </motion.div>
       </motion.header>
 
@@ -616,7 +616,7 @@ export default function HomePage() {
       <Suspense fallback={<div className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
         <ParallaxSection>
           <section id="features" className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm">
-            <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -626,7 +626,7 @@ export default function HomePage() {
               >
                 <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
                   Complete Password Security Solution
-                </h2>
+            </h2>
                 <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
                   Advanced features powered by bank-level security architecture. Everything you need for password security with enterprise-grade protection.
                 </p>
@@ -637,7 +637,7 @@ export default function HomePage() {
                 {features.map((feature, index) => (
                   <FeatureCard key={index} feature={feature} index={index} />
                 ))}
-              </div>
+          </div>
 
               {/* Security Architecture Section */}
               <motion.div 
@@ -667,7 +667,7 @@ export default function HomePage() {
                   <SecurityFeatureCard key={index} feature={feature} index={index} />
                 ))}
               </div>
-            </div>
+                </div>
           </section>
         </ParallaxSection>
       </Suspense>
@@ -734,7 +734,7 @@ export default function HomePage() {
                           <span className="ml-2 text-gray-900 dark:text-white">Account #12345</span>
                         </div>
                       </div>
-                    </div>
+                </div>
                   </TrustIndicatorCard>
 
                   {/* What We See */}
@@ -835,11 +835,11 @@ export default function HomePage() {
                         </p>
                       </div>
                     </div>
-                  </div>
+                </div>
                 </motion.div>
-              </div>
-            </div>
-          </section>
+          </div>
+        </div>
+      </section>
         </ParallaxSection>
       </Suspense>
 
@@ -867,7 +867,7 @@ export default function HomePage() {
                 <TrustIndicatorCard delay={0.1} className="p-8 text-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-6 shadow-lg">
                     <Infinity className="h-8 w-8 text-white" />
-                  </div>
+              </div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Forever Free</h3>
                   <p className="text-gray-600 dark:text-gray-400">
                     No hidden costs, no premium tiers, no feature limitations. CryptLock is completely free forever because we believe security should be accessible to everyone.
@@ -887,7 +887,7 @@ export default function HomePage() {
                 <TrustIndicatorCard delay={0.3} className="p-8 text-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-6 shadow-lg">
                     <TrendingUp className="h-8 w-8 text-white" />
-                  </div>
+            </div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Built for the Future</h3>
                   <p className="text-gray-600 dark:text-gray-400">
                     Designed with modern security standards and best practices. We&apos;re committed to staying ahead of emerging threats and evolving user needs.

@@ -47,11 +47,11 @@ export function MasterPasswordEducation({ onContinue, onCancel }: MasterPassword
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Critical Warning */}
-          <Alert variant="destructive" className="border-red-500 bg-red-50 dark:bg-red-950/30">
-            <AlertTriangle className="h-5 w-5" />
+          {/* Important Warning */}
+          <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <AlertDescription className="text-base">
-              <strong className="text-lg">⚠️ CRITICAL WARNING</strong>
+              <strong className="text-lg text-amber-800 dark:text-amber-200">⚠️ Important Warning</strong>
               <br />
               If you forget your master password, you will <strong>permanently lose ALL your data</strong>. 
               There is no recovery, reset, or bypass option.

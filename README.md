@@ -11,33 +11,92 @@
 **A secure, zero-knowledge password manager with end-to-end encryption.**  
 *Your master password never leaves your device, ensuring complete privacy and security.*
 
-[🚀 Live Demo](https://cryptlock.vercel.app) • [🔒 Security](#-security-architecture)
+[🚀 Live Demo](https://cryptlock-chi.vercel.app/) • [🔒 Security](#-security-architecture)
 
 </div>
 
----
-
 ## 📋 Table of Contents
 
+- [🎯 Problem Statement](#-problem-statement)
+- [🔒 Security Architecture](#-security-architecture)
 - [✨ Features](#-features)
 - [🚀 Quick Start](#-quick-start)
 - [🏗️ Tech Stack](#️-tech-stack)
 - [📁 Project Structure](#-project-structure)
-- [🔒 Security Architecture](#-security-architecture)
 - [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
 
+---
+
+## 🎯 Problem Statement
+
+### The Challenge
+Most people have **100+ online accounts** but reuse only **5-7 passwords**. Traditional password managers store your master password or have recovery mechanisms, meaning they can potentially access your data.
+
+### Why Your Passwords Are Safe from Everyone
+
+CryptLock uses **true zero-knowledge architecture** - we literally cannot see your passwords, even if we wanted to.
+
+#### Dual Authentication System
+- **Account Password**: Firebase authentication for app access (recoverable via email)
+- **Master Password**: Vault encryption key that **never leaves your device** (unrecoverable by design)
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Your Device   │    │   CryptLock      │    │   Your Vault    │
+│                 │    │   Servers        │    │                 │
+│ Master Password │───▶│                 │───▶│ Encrypted Blob │
+│ (Never Sent!)   │    │ Cannot Read This │    │ (Unreadable)    │
+│                 │    │                  │    │                 │
+│ AES-256 Key     ┼──▶│ Only Stores      ┼─-─▶│ Encrypted Data  │
+│ (Local Only)    │    │ Encrypted Data   │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+#### Your Passwords Are Protected From:
+- ✅ **Hackers**: Even if CryptLock is breached, your data remains encrypted
+- ✅ **Governments**: No backdoors or master keys exist - we cannot be forced to decrypt
+- ✅ **CryptLock Employees**: Our team cannot access your passwords
+- ✅ **Future Threats**: Quantum-resistant by design
+- ⚠️ **Trade-off**: Forgotten master password = permanent data loss (this ensures your security)
+
+## 🔒 Security Architecture
+
+### Zero-Knowledge Design Principles
+
+```mermaid
+graph TD
+    A[User Master Password] --> B[PBKDF2 Key Derivation]
+    B --> C[AES-256 Encryption Key]
+    C --> D[Client-Side Encryption]
+    D --> E[Encrypted Data Blob]
+    E --> F[Firebase Firestore]
+    
+    G[Server/Firebase] -.-> H[Never Sees Plain Text]
+    I[CryptLock Team] -.-> H
+```
+
+### Encryption Flow
+1. **Master Password** → PBKDF2 (100,000+ iterations) → **AES-256 Key**
+2. **Client-Side Encryption** → **Encrypted Blob** → **Firebase Storage**
+3. Only your device can decrypt with the original master password
+
+### Technical Implementation
+- 🔐 **AES-256-CBC** encryption with unique IVs
+- 🔑 **PBKDF2** key derivation (100,000+ iterations) with unique salts
+- 🚫 **No plain-text** storage on servers
+- 🛡️ **Firestore security rules** prevent unauthorized access
+- 🔒 **Master password** never transmitted or stored anywhere
+
 ## ✨ Features
 
-- 🔒 **Zero-Knowledge Architecture** - Your master password never leaves your device
-- 🛡️ **Military-Grade Encryption** - AES-256-CBC with PBKDF2 key derivation (100,000+ iterations)
-- 📱 **Cross-Platform Ready** - Responsive web app with offline support
 - 🔑 **Password Generation** - Cryptographically secure password generation with customizable criteria
 - 📊 **Security Dashboard** - Real-time password strength evaluation and security insights
-- 🔄 **Real-Time Sync** - Encrypted data synchronization with optimized performance
 - 📝 **Multi-Type Storage** - Store passwords, secure notes, credit cards, and identity information
 - 🚨 **Security Monitoring** - Password strength tracking and security recommendations
+- 🔄 **Real-Time Sync** - Encrypted data synchronization with optimized performance
 - 💾 **Offline Support** - Works without internet connection with local caching
+- 📱 **Cross-Platform Ready** - Responsive web app design
 - 🛡️ **Route Protection** - Automatic authentication guards and session management
 
 ## 🚀 Quick Start
@@ -88,7 +147,6 @@ yarn dev
 ```
 
 🎉 **Success!** Visit [http://localhost:3000](http://localhost:3000) to see CryptLock in action!
-
 
 ## 🏗️ Tech Stack
 
@@ -170,39 +228,6 @@ password-manager-web/
 ├── 📄 LICENSE                # MIT License
 └── 📄 README.md              # This file
 ```
-
-## 🔒 Security Architecture
-
-### Zero-Knowledge Design Principles
-
-```mermaid
-graph TD
-    A[User Master Password] --> B[PBKDF2 Key Derivation]
-    B --> C[AES-256 Encryption Key]
-    C --> D[Client-Side Encryption]
-    D --> E[Encrypted Data Blob]
-    E --> F[Firebase Firestore]
-    
-    G[Server/Firebase] -.-> H[Never Sees Plain Text]
-    I[CryptLock Team] -.-> H
-```
-
-### Encryption Flow
-
-1. **Master Password Entry**: User enters master password (never transmitted)
-2. **Key Derivation**: PBKDF2 with 100,000+ iterations generates encryption key
-3. **Data Encryption**: AES-256-CBC encrypts all vault data client-side
-4. **Secure Storage**: Only encrypted blobs stored in Firestore
-5. **Decryption**: Only user's device can decrypt data with master password
-
-### Security Features
-
-- 🔐 **AES-256-CBC** encryption with unique IVs
-- 🔑 **PBKDF2** key derivation (100,000+ iterations)
-- 🧂 **Unique salts** for each user
-- 🚫 **No plain-text storage** on servers
-- 🔒 **Master password** never leaves device
-- 🛡️ **Firestore security rules** prevent unauthorized access
 
 ## 🤝 Contributing
 

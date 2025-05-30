@@ -42,11 +42,11 @@ export default function ForgotPasswordPage() {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Critical Warning */}
-            <Alert className="border-red-200 dark:border-red-800 bg-gradient-to-br from-red-50/80 to-orange-50/80 dark:from-red-900/20 dark:to-orange-900/20">
-              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-              <AlertDescription className="text-red-800 dark:text-red-200">
-                <div className="font-semibold mb-2">❌ MASTER PASSWORD CANNOT BE RECOVERED</div>
+            {/* Important Information */}
+            <Alert className="border-amber-200 dark:border-amber-800 bg-gradient-to-br from-amber-50/80 to-orange-50/80 dark:from-amber-900/20 dark:to-orange-900/20">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <AlertDescription className="text-amber-800 dark:text-amber-200">
+                <div className="font-semibold mb-2">⚠️ MASTER PASSWORD CANNOT BE RECOVERED</div>
                 <p className="text-sm">
                   Due to our zero-knowledge architecture, your master password cannot be reset, recovered, or bypassed by anyone - including our support team.
                 </p>
