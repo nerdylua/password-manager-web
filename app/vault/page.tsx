@@ -1618,17 +1618,6 @@ function VaultContent() {
                   
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" disabled>
-                        <Settings className="w-4 h-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Vault settings (Coming Soon)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  
-                  <Tooltip>
-                    <TooltipTrigger asChild>
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -1779,29 +1768,6 @@ function VaultContent() {
                       <p>Analyze vault for weak, duplicate, and old passwords</p>
                     </TooltipContent>
                   </Tooltip>
-                </CardContent>
-              </Card>
-
-              {/* Help Section */}
-              <Card className="mt-6">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center">
-                    <HelpCircle className="w-5 h-5 mr-2" />
-                    Need Help?
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
-                    <div className="flex items-start space-x-2">
-                      <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Getting Started</p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          Click &quot;Add Item&quot; to create your first secure entry
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             </div>

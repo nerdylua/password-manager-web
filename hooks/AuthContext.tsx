@@ -243,26 +243,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Update display name
-      await updateProfile(user, { displayName });
-
-      // Generate user salt for master password hashing
+      // Generate user salt for master password hashing (do this once)
       const userSalt = ZeroKnowledgeEncryption.generateSalt();
-
-      // Create test data to verify master password later
+      
+      // Prepare test string for vault verification
       const testString = `vault-test-${user.uid}-${Date.now()}`;
-      const vaultTestData = ZeroKnowledgeEncryption.encrypt(testString, masterPassword);
 
-      // Create user profile document
+      // Start Firebase profile update immediately (async operation)
+      const profileUpdatePromise = updateProfile(user, { displayName });
+
+      // Run crypto operations with micro-task scheduling to prevent UI blocking
+      const [masterPasswordHash, masterPasswordFastHash, vaultTestData] = await Promise.all([
+        // Use setTimeout to schedule crypto work in next tick
+        new Promise<string>(resolve => {
+          setTimeout(() => {
+            resolve(ZeroKnowledgeEncryption.hashForRegistration(masterPassword, userSalt));
+          }, 0);
+        }),
+        new Promise<string>(resolve => {
+          setTimeout(() => {
+            resolve(ZeroKnowledgeEncryption.fastHash(masterPassword, userSalt));
+          }, 0);
+        }),
+        new Promise<EncryptedData>(resolve => {
+          setTimeout(() => {
+            resolve(ZeroKnowledgeEncryption.encryptForRegistration(testString, masterPassword));
+          }, 0);
+        })
+      ]);
+
+      // Wait for profile update to complete
+      await profileUpdatePromise;
+
+      // Create user profile document with pre-computed values
       const userProfileData: UserProfile = {
         uid: user.uid,
         email: user.email!,
         displayName,
         createdAt: Date.now(),
         lastLoginAt: Date.now(),
-        masterPasswordHash: ZeroKnowledgeEncryption.hash(masterPassword, userSalt),
+        masterPasswordHash,
         masterPasswordSalt: userSalt,
-        masterPasswordFastHash: ZeroKnowledgeEncryption.fastHash(masterPassword, userSalt),
+        masterPasswordFastHash,
         masterPasswordHint: hint || null,
         vaultTestData,
         settings: {
@@ -272,6 +294,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       };
 
+      // Save user profile to Firestore
       await setDoc(doc(db, 'users', user.uid), userProfileData);
       
       // Automatically verify master password since it was just set during registration

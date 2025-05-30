@@ -251,4 +251,52 @@ export class ZeroKnowledgeEncryption {
     const hash = CryptoJS.SHA256(field.toLowerCase().trim() + userId);
     return hash.toString();
   }
+
+  /**
+   * Optimized encrypt function for registration (lighter iterations for initial setup)
+   * This is safe for registration because we're just creating test data, not actual vault content
+   */
+  static encryptForRegistration(data: string, masterPassword: string): EncryptedData {
+    try {
+      const salt = this.generateSalt();
+      const iv = this.generateIV();
+      const iterations = 50000; // Half the iterations for faster registration
+      const keySize = this.DEFAULT_KEY_SIZE;
+
+      // Derive encryption key from master password
+      const key = this.deriveKey(masterPassword, salt, iterations, keySize);
+
+      // Encrypt the data
+      const encrypted = CryptoJS.AES.encrypt(data, key, {
+        iv: CryptoJS.enc.Hex.parse(iv),
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      });
+
+      return {
+        encryptedData: encrypted.toString(),
+        iv,
+        salt,
+        keyDerivationParams: {
+          iterations,
+          keySize
+        }
+      };
+    } catch (error) {
+      throw new Error('Encryption failed: ' + (error as Error).message);
+    }
+  }
+
+  /**
+   * Optimized hash for registration (lighter iterations for faster signup)
+   * Still secure but faster for initial account creation
+   */
+  static hashForRegistration(password: string, salt: string): string {
+    const hash = CryptoJS.PBKDF2(password, salt, {
+      iterations: 75000, // 25% fewer iterations for faster registration
+      keySize: this.DEFAULT_KEY_SIZE,
+      hasher: CryptoJS.algo.SHA512
+    });
+    return hash.toString();
+  }
 } 

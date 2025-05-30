@@ -122,15 +122,18 @@ function RegisterContent() {
     setLoading(true);
     setError(''); // Clear any previous errors
 
+    // Provide immediate feedback to user
+    toast.loading('Setting up your secure vault...', { id: 'register' });
+
     try {
       await signUp(email, password, displayName, masterPassword, masterPasswordHint || undefined);
-      toast.success('Account created successfully! Welcome to CryptLock!');
+      toast.success('Account created successfully! Welcome to CryptLock!', { id: 'register' });
       router.replace(redirectTo);
     } catch (error) {
       logError(error, 'account registration');
       const userFriendlyMessage = getFirebaseErrorMessage(error);
       setError(userFriendlyMessage); // Use regular error display for Firebase errors
-      toast.error('Failed to create account. Please try again.');
+      toast.error('Failed to create account. Please try again.', { id: 'register' });
     } finally {
       setLoading(false);
     }
