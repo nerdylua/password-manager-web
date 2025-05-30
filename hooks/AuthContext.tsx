@@ -245,7 +245,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Generate user salt for master password hashing (do this once)
       const userSalt = ZeroKnowledgeEncryption.generateSalt();
-      
+
       // Prepare test string for vault verification
       const testString = `vault-test-${user.uid}-${Date.now()}`;
 

@@ -181,7 +181,7 @@ RecentItem.displayName = 'RecentItem';
 function DashboardContent() {
   const { user, userProfile, logout, lockVault, getMasterPassword } = useAuth();
   const router = useRouter();
-  
+
   // Optimized state management - split into smaller chunks
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     vaultItems: [],
@@ -323,9 +323,9 @@ function DashboardContent() {
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        return;
-      }
-      
+      return;
+    }
+
       console.error('Failed to load dashboard data:', error);
       showDetailedError(
         'Dashboard Data Error',
@@ -413,7 +413,7 @@ function DashboardContent() {
         const masterPassword = getMasterPassword();
         if (!masterPassword) {
           toast.error('Master password required for export', { id: 'export-vault' });
-          return;
+      return;
         }
         items = await VaultService.getAllItems(user.uid, masterPassword);
       }
@@ -603,9 +603,9 @@ function DashboardContent() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <header className="bg-white dark:bg-gray-800 shadow border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-4">
               <div className="flex items-center space-x-4">
                 <Tooltip>
@@ -626,7 +626,7 @@ function DashboardContent() {
                 </Tooltip>
 
                 <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                <div>
+              <div>
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                     CryptLock Dashboard
                   </h1>
@@ -732,7 +732,7 @@ function DashboardContent() {
                         <Plus className="h-4 w-4 mr-2" />
                         Add Your First Item
                         <ArrowRight className="h-4 w-4 ml-2" />
-                      </Button>
+              </Button>
                     </>
                   ) : (
                     <>
@@ -746,7 +746,7 @@ function DashboardContent() {
                         <Folder className="h-4 w-4 mr-2" />
                         Manage Vault
                         <ArrowRight className="h-4 w-4 ml-2" />
-                      </Button>
+              </Button>
                     </>
                   )}
                 </div>
@@ -767,7 +767,7 @@ function DashboardContent() {
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                     <CardTitle className="text-sm font-medium">Total Items</CardTitle>
                     <Key className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
+            </CardHeader>
                   <CardContent className="pt-0">
                     <div className="text-2xl font-bold">{stats.totalItems}</div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -955,7 +955,7 @@ function DashboardContent() {
                       className="mt-1"
                     />
                   </div>
-
+                  
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="uppercase">Uppercase (A-Z)</Label>
@@ -1005,7 +1005,7 @@ function DashboardContent() {
                       />
                     </div>
                   </div>
-
+                  
                   <Button 
                     onClick={handleGeneratePassword}
                     disabled={buttonStates.generatePassword}
@@ -1110,8 +1110,8 @@ function DashboardContent() {
                   }>
                     {stats.securityScore}%
                   </Badge>
-                </div>
-
+                  </div>
+                  
                 {/* Dynamic Recommendations */}
                 <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
                   <div className="flex items-start space-x-3">
@@ -1301,11 +1301,11 @@ function DashboardContent() {
                       onClick={() => navigateToVault()}
                     />
                   ))}
-                </div>
+              </div>
               )}
             </CardContent>
           </Card>
-        </main>
+      </main>
         
         {/* Error Modal */}
         <ErrorModal
@@ -1315,7 +1315,7 @@ function DashboardContent() {
           message={errorModalData.message}
           error={errorModalData.error}
         />
-      </div>
+    </div>
     </TooltipProvider>
   );
 }

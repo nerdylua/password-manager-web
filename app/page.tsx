@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useCallback, useMemo, memo, lazy, Suspense } from 'react';
+import { useState, useCallback, useMemo, memo, lazy, Suspense, useEffect } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { NavigationMobile } from '@/components/header-mobile';
 import { useAuth } from '@/hooks/AuthContext';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -18,15 +19,10 @@ import {
   Globe, 
   Heart, 
   Layers, 
-  Menu, 
-  Share2, 
   Shield, 
   Sparkles, 
-  X, 
-  ChevronRight,
   AlertTriangle,
   Lock,
-  Home,
   Key,
   Fingerprint,
   ShieldCheck,
@@ -40,8 +36,9 @@ import {
   Mail,
   LogOut,
   BarChart3,
-  Folder
+  Share2
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // Lazy load heavy components that aren't immediately visible
 const ParallaxSection = lazy(() => import('@/components/parallax-section').then(module => ({ default: module.ParallaxSection })));
@@ -80,10 +77,9 @@ interface NavigationProps {
   user: User | null;
   userProfile: UserProfile | null;
   masterPasswordVerified: boolean;
-  mobileMenuOpen: boolean;
-  setMobileMenuOpen: (open: boolean) => void;
   handleDashboardAccess: () => void;
   handleLogout: () => void;
+  isCompact: boolean;
 }
 
 // Memoized components to prevent unnecessary re-renders
@@ -167,17 +163,19 @@ const StatCard = memo(({ stat, index }: { stat: Stat; index: number }) => (
 
 StatCard.displayName = 'StatCard';
 
-// Memoized navigation component
+// Memoized navigation component - Desktop only
 const Navigation = memo(({ 
   user, 
   userProfile, 
   masterPasswordVerified, 
-  mobileMenuOpen, 
-  setMobileMenuOpen, 
   handleDashboardAccess, 
-  handleLogout 
+  handleLogout,
+  isCompact
 }: NavigationProps) => (
-  <nav className="hidden md:flex items-center space-x-8">
+  <nav className={cn(
+    "hidden md:flex items-center space-x-8",
+    isCompact ? "h-16" : "h-20"
+  )}>
     <Link href="#features" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
       Features
     </Link>
@@ -231,7 +229,7 @@ const Navigation = memo(({
 Navigation.displayName = 'Navigation';
 
 export default function HomePage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const { scrollY } = useScroll();
   
   // Optimize parallax transforms with reduced calculations
@@ -240,6 +238,16 @@ export default function HomePage() {
   
   const { user, userProfile, logout, masterPasswordVerified } = useAuth();
   const router = useRouter();
+
+  // Handle scroll for dynamic header
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 50);
+    };
+    
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Memoized handlers to prevent re-renders
   const handleLogout = useCallback(async () => {
@@ -263,10 +271,6 @@ export default function HomePage() {
     sessionStorage.setItem('vaultAccessAuthorized', 'true');
     router.push('/vault');
   }, [router]);
-
-  const toggleMobileMenu = useCallback(() => {
-    setMobileMenuOpen(prev => !prev);
-  }, []);
 
   // Memoized data arrays to prevent recreation on each render
   const features = useMemo(() => [
@@ -366,111 +370,86 @@ export default function HomePage() {
         />
       </div>
 
-      {/* Header */}
-      <header className="relative z-50 border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl sticky top-0 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo */}
-            <Link href="/" className="flex items-center space-x-3 group">
-              <motion.div 
-                className="relative"
-                whileHover={{ scale: 1.05 }}
-                transition={{ type: "spring", stiffness: 400, damping: 10 }}
-              >
-                <Lock className="h-8 w-8 text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors" />
-              </motion.div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                CryptLock
-              </span>
-            </Link>
+      {/* Dynamic Header - Transforms on scroll */}
+      <motion.header
+        className="fixed left-0 right-0 top-0 z-50"
+      >
+        <motion.div
+          initial={{
+            maxWidth: "100%",
+            margin: "0 auto",
+            borderRadius: "0",
+          }}
+          animate={{
+            maxWidth: isScrolled ? "68rem" : "100%",
+            margin: isScrolled ? "1rem auto" : "0 auto",
+            borderRadius: isScrolled ? "9999px" : "0",
+          }}
+          transition={{
+            duration: 0.3,
+            ease: "easeInOut",
+          }}
+          className={cn(
+            "bg-white/80 dark:bg-slate-900/80 border backdrop-blur-xl transition-all duration-300",
+            isScrolled
+              ? "mx-4 md:mx-auto shadow-xl border-gray-200/50 dark:border-gray-700/50" 
+              : "shadow-sm border-gray-200 dark:border-gray-800"
+          )}
+        >
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className={cn(
+              "flex items-center justify-between transition-all duration-300",
+              isScrolled ? "h-16" : "h-20"
+            )}>
+              {/* Logo */}
+              <Link href="/" className="flex items-center space-x-3 group">
+                <motion.div 
+                  className="relative"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                >
+                  <Lock className={cn(
+                    "text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors",
+                    isScrolled ? "h-7 w-7" : "h-8 w-8"
+                  )} />
+                </motion.div>
+                <motion.span 
+                  className="font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent"
+                  animate={{
+                    fontSize: isScrolled ? "1.25rem" : "1.5rem"
+                  }}
+                  transition={{ duration: 0.3 }}
+                >
+                  CryptLock
+                </motion.span>
+              </Link>
 
-            {/* Desktop Navigation */}
-            <Navigation 
-              user={user}
-              userProfile={userProfile}
-              masterPasswordVerified={masterPasswordVerified}
-              mobileMenuOpen={mobileMenuOpen}
-              setMobileMenuOpen={setMobileMenuOpen}
-              handleDashboardAccess={handleDashboardAccess}
-              handleLogout={handleLogout}
-            />
+              {/* Desktop Navigation */}
+              <Navigation 
+                user={user}
+                userProfile={userProfile}
+                masterPasswordVerified={masterPasswordVerified}
+                handleDashboardAccess={handleDashboardAccess}
+                handleLogout={handleLogout}
+                isCompact={isScrolled}
+              />
 
-            {/* Mobile Menu Button */}
-            <div className="md:hidden flex items-center space-x-2">
-              <ThemeToggle />
-              <button
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                onClick={toggleMobileMenu}
-              >
-                {mobileMenuOpen ? (
-                  <X className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-                ) : (
-                  <Menu className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-                )}
-              </button>
+              {/* Mobile Navigation */}
+              <NavigationMobile
+                user={user}
+                userProfile={userProfile}
+                masterPasswordVerified={masterPasswordVerified}
+                handleDashboardAccess={handleDashboardAccess}
+                handleLogout={handleLogout}
+                isScrolled={isScrolled}
+              />
             </div>
           </div>
+        </motion.div>
+      </motion.header>
 
-          {/* Mobile Navigation - optimized with AnimatePresence */}
-          <AnimatePresence>
-            {mobileMenuOpen && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="md:hidden mt-4 pb-4 border-t pt-4"
-              >
-                <nav className="flex flex-col space-y-4">
-                  <Link href="#features" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
-                    Features
-                  </Link>
-                  <Link href="#security" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
-                    Security
-                  </Link>
-                  <Link href="#about" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
-                    About
-                  </Link>
-                  
-                  {user ? (
-                    <>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 pt-2 border-t">
-                        Welcome, {userProfile?.displayName || user.email?.split('@')[0]}
-                      </div>
-                      <Button 
-                        onClick={handleDashboardAccess}
-                        variant="outline"
-                        className="w-full justify-start border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                      >
-                        <BarChart3 className="mr-2 h-4 w-4" />
-                        {masterPasswordVerified ? 'Dashboard' : 'Sign In'}
-                      </Button>
-                      <Button 
-                        onClick={handleLogout}
-                        variant="ghost"
-                        className="w-full justify-start text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                      >
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Logout
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Link href="/auth/login" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
-                        Sign In
-                      </Link>
-                      <Link href="/auth/register" className="w-fit">
-                        <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
-                          Get Started Free
-                        </Button>
-                      </Link>
-                    </>
-                  )}
-                </nav>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </header>
+      {/* Spacer for fixed header */}
+      <div className="h-20" />
 
       {/* Hero Section */}
       <section className="relative container mx-auto px-4 py-16 md:py-24">
@@ -540,18 +519,18 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <Link href="/auth/register">
+            <Link href="/auth/register">
                   <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl text-lg px-8 py-4 group">
                     <Rocket className="mr-2 h-5 w-5" />
-                    Start Free Today
+                Start Free Today
                     <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </Link>
-                <Link href="/auth/login">
+              </Button>
+            </Link>
+            <Link href="/auth/login">
                   <Button variant="outline" size="lg" className="w-full sm:w-auto border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-300 text-lg px-8 py-4">
-                    Sign In
-                  </Button>
-                </Link>
+                Sign In
+              </Button>
+            </Link>
               </>
             )}
           </motion.div>
@@ -564,7 +543,7 @@ export default function HomePage() {
             className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12"
           >
             <TrustIndicatorCard delay={0.1} className="p-6">
-              <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 flex items-center justify-center mb-3">
                   <Eye className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
@@ -580,11 +559,11 @@ export default function HomePage() {
                 </div>
                 <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">AES-256 Encryption</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Military-grade security</p>
-              </div>
+            </div>
             </TrustIndicatorCard>
 
             <TrustIndicatorCard delay={0.3} className="p-6">
-              <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/50 dark:to-purple-800/50 flex items-center justify-center mb-3">
                   <Globe className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                 </div>
@@ -597,7 +576,7 @@ export default function HomePage() {
               <div className="flex flex-col items-center">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-100 to-pink-200 dark:from-pink-900/50 dark:to-pink-800/50 flex items-center justify-center mb-3">
                   <Heart className="h-8 w-8 text-pink-600 dark:text-pink-400" />
-                </div>
+            </div>
                 <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">100% Free</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Forever & always</p>
               </div>
@@ -637,7 +616,7 @@ export default function HomePage() {
       <Suspense fallback={<div className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
         <ParallaxSection>
           <section id="features" className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm">
-            <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -646,19 +625,19 @@ export default function HomePage() {
                 className="text-center mb-16"
               >
                 <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-                  Everything You Need for Password Security
-                </h2>
+              Everything You Need for Password Security
+            </h2>
                 <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
                   Comprehensive features designed to keep your digital life secure and organized with enterprise-grade protection.
-                </p>
+            </p>
               </motion.div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {features.map((feature, index) => (
                   <FeatureCard key={index} feature={feature} index={index} />
                 ))}
               </div>
-            </div>
+                </div>
           </section>
         </ParallaxSection>
       </Suspense>
@@ -688,7 +667,7 @@ export default function HomePage() {
                   <SecurityFeatureCard key={index} feature={feature} index={index} />
                 ))}
               </div>
-            </div>
+                </div>
           </section>
         </ParallaxSection>
       </Suspense>
@@ -755,7 +734,7 @@ export default function HomePage() {
                           <span className="ml-2 text-gray-900 dark:text-white">Account #12345</span>
                         </div>
                       </div>
-                    </div>
+                </div>
                   </TrustIndicatorCard>
 
                   {/* What We See */}
@@ -856,11 +835,11 @@ export default function HomePage() {
                         </p>
                       </div>
                     </div>
-                  </div>
+                </div>
                 </motion.div>
-              </div>
-            </div>
-          </section>
+          </div>
+        </div>
+      </section>
         </ParallaxSection>
       </Suspense>
 
@@ -868,7 +847,7 @@ export default function HomePage() {
       <Suspense fallback={<div className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
         <ParallaxSection>
           <section id="about" className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm">
-            <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -878,7 +857,7 @@ export default function HomePage() {
               >
                 <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
                   Why Choose CryptLock?
-                </h2>
+            </h2>
                 <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
                   We believe privacy is a fundamental right, not a premium feature.
                 </p>
@@ -898,7 +877,7 @@ export default function HomePage() {
                 <TrustIndicatorCard delay={0.2} className="p-8 text-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mx-auto mb-6 shadow-lg">
                     <Award className="h-8 w-8 text-white" />
-                  </div>
+              </div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Open Source</h3>
                   <p className="text-gray-600 dark:text-gray-400">
                     Our code is open for everyone to inspect, audit, and contribute to. Transparency builds trust, and trust is the foundation of security.
@@ -914,9 +893,9 @@ export default function HomePage() {
                     Designed with modern security standards and best practices. We&apos;re committed to staying ahead of emerging threats and evolving user needs.
                   </p>
                 </TrustIndicatorCard>
-              </div>
-            </div>
-          </section>
+          </div>
+        </div>
+      </section>
         </ParallaxSection>
       </Suspense>
 
@@ -933,19 +912,19 @@ export default function HomePage() {
                 viewport={{ once: true, margin: "-50px" }}
               >
                 <h2 className="text-4xl md:text-5xl font-bold mb-6">
-                  Ready to Secure Your Digital Life?
-                </h2>
+            Ready to Secure Your Digital Life?
+          </h2>
                 <p className="text-xl mb-8 max-w-2xl mx-auto opacity-90">
                   Be among the first to experience next-generation password security. Start your journey to better digital protection today.
-                </p>
+          </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                  <Link href="/auth/register">
+          <Link href="/auth/register">
                     <Button size="lg" variant="secondary" className="w-full sm:w-auto text-lg px-8 py-4 bg-white text-blue-600 hover:bg-gray-100 shadow-lg hover:shadow-xl transition-all duration-300">
                       <Rocket className="mr-2 h-5 w-5" />
                       Start Free Today
                       <ArrowRight className="ml-2 h-5 w-5" />
-                    </Button>
-                  </Link>
+            </Button>
+          </Link>
                   <Button size="lg" variant="outline" className="w-full sm:w-auto text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-blue-600 transition-all duration-300" asChild>
                     <a href="https://github.com/nerdylua/password-manager-web" target="_blank" rel="noopener noreferrer">
                       <Github className="mr-2 h-5 w-5" />
@@ -954,8 +933,8 @@ export default function HomePage() {
                   </Button>
                 </div>
               </motion.div>
-            </div>
-          </section>
+        </div>
+      </section>
         </ParallaxSection>
       </Suspense>
 
