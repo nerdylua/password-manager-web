@@ -55,6 +55,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <title>CryptLock</title>
+      </head>
       <body className={`${inter.className} overscroll-none`}>
         <AuthProvider>
           <ThemeProvider
@@ -64,19 +67,19 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <AuthRedirect>
-          {children}
+              {children}
             </AuthRedirect>
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
                   background: 'var(--background)',
                   color: 'var(--foreground)',
                   border: '1px solid var(--border)',
-              },
-            }}
-          />
+                },
+              }}
+            />
           </ThemeProvider>
         </AuthProvider>
       </body>
