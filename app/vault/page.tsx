@@ -35,13 +35,15 @@ import {
   ArrowLeft,
   Info,
   Lightbulb,
-  HelpCircle
+  HelpCircle,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import RouteGuard from '@/components/RouteGuard';
 import AddItemModal from '@/components/AddItemModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ErrorModal from '@/components/ErrorModal';
 
 interface VaultPageState {
@@ -54,8 +56,44 @@ interface VaultPageState {
   showPasswords: Record<string, boolean>;
 }
 
+// Security issue detection functions
+const getSecurityIssues = (item: VaultItem, allItems: VaultItem[]) => {
+  const issues: { type: 'weak' | 'duplicate' | 'old' | 'missing'; message: string }[] = [];
+  
+  // Check for weak passwords
+  if (item.password && item.password.length < 8) {
+    issues.push({ type: 'weak', message: 'Password is too short (less than 8 characters)' });
+  }
+  
+  // Check for duplicate passwords
+  if (item.password) {
+    const duplicates = allItems.filter(other => 
+      other.id !== item.id && other.password === item.password
+    );
+    if (duplicates.length > 0) {
+      issues.push({ type: 'duplicate', message: `Password is used in ${duplicates.length} other ${duplicates.length === 1 ? 'item' : 'items'}` });
+    }
+  }
+  
+  // Check for old passwords (90+ days)
+  if (item.lastModified) {
+    const daysSinceModified = (Date.now() - item.lastModified) / (1000 * 60 * 60 * 24);
+    if (daysSinceModified > 90) {
+      issues.push({ type: 'old', message: `Password hasn't been updated in ${Math.floor(daysSinceModified)} days` });
+    }
+  }
+  
+  // Check for missing passwords in login items
+  if (item.category === 'login' && !item.password) {
+    issues.push({ type: 'missing', message: 'Login item is missing a password' });
+  }
+  
+  return issues;
+};
+
 function VaultContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, userProfile, logout, lockVault, getMasterPassword } = useAuth();
   
   // Memoized refs like topics pattern for better performance
@@ -69,6 +107,13 @@ function VaultContent() {
     selectedCategory: 'all',
     viewMode: 'grid',
     showPasswords: {},
+  });
+
+  // Security highlighting state
+  const [securityHighlight, setSecurityHighlight] = useState({
+    enabled: false,
+    itemsWithIssues: new Set<string>(),
+    showBanner: false
   });
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -290,6 +335,51 @@ function VaultContent() {
   useEffect(() => {
     loadVaultItems();
   }, [loadVaultItems]);
+
+  // Security highlighting initialization effect
+  useEffect(() => {
+    const highlight = searchParams.get('highlight');
+    const sessionHighlight = sessionStorage.getItem('highlightSecurityIssues');
+    
+    if (highlight === 'security' || sessionHighlight === 'true') {
+      setSecurityHighlight(prev => ({ ...prev, enabled: true, showBanner: true }));
+      
+      // Clear session storage after reading
+      sessionStorage.removeItem('highlightSecurityIssues');
+      
+      // Show toast notification
+      toast.success('Security highlighting enabled - problematic items are highlighted in red');
+    }
+  }, [searchParams]);
+
+  // Update security issues when items change
+  useEffect(() => {
+    if (securityHighlight.enabled && state.items.length > 0) {
+      const itemsWithIssues = new Set<string>();
+      
+      state.items.forEach(item => {
+        const issues = getSecurityIssues(item, state.items);
+        if (issues.length > 0) {
+          itemsWithIssues.add(item.id);
+        }
+      });
+      
+      setSecurityHighlight(prev => ({
+        ...prev,
+        itemsWithIssues
+      }));
+    }
+  }, [securityHighlight.enabled, state.items]);
+
+  // Dismiss security highlighting
+  const dismissSecurityHighlight = useCallback(() => {
+    setSecurityHighlight({
+      enabled: false,
+      itemsWithIssues: new Set(),
+      showBanner: false
+    });
+    toast.success('Security highlighting disabled');
+  }, []);
 
   // Filter items when search or category changes
   useEffect(() => {
@@ -1062,11 +1152,39 @@ function VaultContent() {
   const renderVaultItem = (item: VaultItem) => {
     const ItemIcon = getItemIcon(item.category);
     const isPasswordVisible = state.showPasswords[item.id];
+    
+    // Check for security issues if highlighting is enabled
+    const hasSecurityIssues = securityHighlight.enabled && securityHighlight.itemsWithIssues.has(item.id);
+    const securityIssues = hasSecurityIssues ? getSecurityIssues(item, state.items) : [];
 
     if (state.viewMode === 'list') {
       return (
-        <Card key={item.id} className="hover:shadow-md transition-shadow">
+        <Card 
+          key={item.id} 
+          className={`hover:shadow-md transition-shadow ${
+            hasSecurityIssues 
+              ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10' 
+              : ''
+          }`}
+        >
           <CardContent className="p-4">
+            {/* Security Issues Banner */}
+            {hasSecurityIssues && (
+              <div className="mb-3 p-2 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-red-800 dark:text-red-200 mb-1">Security Issues Found:</p>
+                    <ul className="text-xs text-red-700 dark:text-red-300 space-y-0.5">
+                      {securityIssues.map((issue, index) => (
+                        <li key={index}>• {issue.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4 flex-1">
                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
@@ -1289,7 +1407,14 @@ function VaultContent() {
 
     // Grid view with enhanced tooltips
     return (
-      <Card key={item.id} className="hover:shadow-lg transition-all duration-200 cursor-pointer group">
+      <Card 
+        key={item.id} 
+        className={`hover:shadow-lg transition-all duration-200 cursor-pointer group ${
+          hasSecurityIssues 
+            ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10' 
+            : ''
+        }`}
+      >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-3">
@@ -1301,6 +1426,23 @@ function VaultContent() {
                   <h3 className="font-semibold text-gray-900 dark:text-white truncate">
                     {item.name}
                   </h3>
+                  {hasSecurityIssues && (
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <div>
+                          <p className="font-medium mb-1">Security Issues:</p>
+                          <ul className="text-xs space-y-0.5">
+                            {securityIssues.map((issue, index) => (
+                              <li key={index}>• {issue.message}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                   {item.favorite && (
                     <Tooltip>
                       <TooltipTrigger>
@@ -1831,6 +1973,43 @@ function VaultContent() {
                   </Tooltip>
                 </div>
               </div>
+
+              {/* Security Highlighting Banner */}
+              {securityHighlight.enabled && securityHighlight.showBanner && (
+                <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-1">
+                          Security Review Mode Active
+                        </h4>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
+                          Items with security issues are highlighted with red borders and warning icons. 
+                          {securityHighlight.itemsWithIssues.size > 0 
+                            ? ` Found ${securityHighlight.itemsWithIssues.size} item${securityHighlight.itemsWithIssues.size === 1 ? '' : 's'} that need attention.`
+                            : ' All items look secure!'
+                          }
+                        </p>
+                        <div className="flex items-center space-x-2 text-xs text-amber-600 dark:text-amber-400">
+                          <span>• Weak passwords (less than 8 characters)</span>
+                          <span>• Duplicate passwords</span>
+                          <span>• Old passwords (90+ days)</span>
+                          <span>• Missing passwords</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={dismissSecurityHighlight}
+                      className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Vault Items */}
               {state.loading ? (
