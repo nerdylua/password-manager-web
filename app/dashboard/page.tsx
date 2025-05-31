@@ -191,6 +191,7 @@ function DashboardContent() {
   });
   
   const [loadingItems, setLoadingItems] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0, stage: 'Initializing...' });
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorModalData, setErrorModalData] = useState<{
     title: string;
@@ -277,6 +278,7 @@ function DashboardContent() {
 
     try {
       setLoadingItems(true);
+      setLoadingProgress({ current: 0, total: 3, stage: 'Connecting to vault...' });
       
       const masterPassword = getMasterPassword();
       if (!masterPassword) {
@@ -289,6 +291,8 @@ function DashboardContent() {
         return;
       }
 
+      setLoadingProgress({ current: 1, total: 3, stage: 'Checking cache...' });
+
       // Check cache first for instant loading
       if (!forceRefresh) {
         const cached = dashboardCache.current.get(user.uid);
@@ -299,14 +303,16 @@ function DashboardContent() {
         }
       }
 
+      setLoadingProgress({ current: 2, total: 3, stage: 'Decrypting vault data...' });
       const startTime = performance.now();
       
-      // Load limited data for dashboard - only first 50 items for faster loading
+      // Optimized data loading - fetch only essential data for dashboard
       const items = await VaultService.getAllItems(user.uid, masterPassword, { 
         useCache: !forceRefresh,
-        limit: 50 // Reduced from 100 for faster loading
+        limit: 30 // Reduced from 50 for faster initial loading
       });
       
+      setLoadingProgress({ current: 3, total: 3, stage: 'Processing statistics...' });
       const loadTime = performance.now() - startTime;
       console.log(`Dashboard data loaded in ${loadTime.toFixed(2)}ms`);
 
@@ -321,10 +327,10 @@ function DashboardContent() {
       dashboardCache.current.set(user.uid, newDashboardData);
       setDashboardData(newDashboardData);
 
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
-      return;
-    }
+        return;
+      }
 
       console.error('Failed to load dashboard data:', error);
       showDetailedError(
@@ -719,6 +725,36 @@ function DashboardContent() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Loading Progress Indicator */}
+          {loadingItems && (
+            <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border shadow-sm p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex-shrink-0">
+                  <RefreshCw className="h-6 w-6 text-blue-600 dark:text-blue-400 animate-spin" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {loadingProgress.stage}
+                    </span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {loadingProgress.current}/{loadingProgress.total}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${(loadingProgress.current / loadingProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Decrypting your vault data locally in your browser for maximum security
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Welcome Section */}
           <div className="mb-8">
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-700">

@@ -2,16 +2,16 @@
   "name": "cryptlock-web",
   "version": "1.0.0",
   "description": "CryptLock - Zero-Knowledge Password Manager Web Application",
-  "author": "CryptLock Team",
+  "author": "Nihaal SP",
   "license": "MIT",
   "private": true,
-  "homepage": "https://github.com/nerdylua/password-manager",
+  "homepage": "https://github.com/nerdylua/password-manager-web",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nerdylua/password-manager.git"
+    "url": "https://github.com/nerdylua/password-manager-web.git"
   },
   "bugs": {
-    "url": "https://github.com/nerdylua/password-manager/issues"
+    "url": "https://github.com/nerdylua/password-manager-web/issues"
   },
   "keywords": [
     "password-manager",

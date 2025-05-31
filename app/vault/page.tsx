@@ -184,7 +184,7 @@ function VaultContent() {
     // Preload for instant access
     VaultService.preloadVaultData(user.uid, masterPassword);
     
-    // Direct listener setup like topics
+    // Direct listener setup with optimized debouncing
     const unsubscribe = VaultService.setupVaultListener(
       user.uid,
       masterPassword,
@@ -210,7 +210,10 @@ function VaultContent() {
           () => window.location.reload()
         );
       },
-      { limit: 100 }
+      { 
+        limit: 100,
+        debounceMs: 300 // Optimized debounce time for better performance
+      }
     );
 
     // Simple cleanup like topics
@@ -2018,7 +2021,27 @@ function VaultContent() {
               {/* Vault Items */}
               {state.loading ? (
                 <div className="flex items-center justify-center py-16">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border shadow-sm p-8 max-w-md w-full">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex-shrink-0">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                          Decrypting Your Vault
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                          Loading and decrypting your vault items with zero-knowledge encryption...
+                        </p>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                          <div className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                          All decryption happens locally in your browser for maximum security
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : state.filteredItems.length === 0 ? (
                 state.searchTerm || state.selectedCategory !== 'all' ? (

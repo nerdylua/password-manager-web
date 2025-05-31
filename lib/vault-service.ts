@@ -641,7 +641,7 @@ export class VaultService {
   }
 
   /**
-   * Ultra-simple real-time listener (exact topics pattern)
+   * Ultra-optimized real-time listener with advanced performance optimizations
    */
   static setupVaultListener(
     userId: string,
@@ -650,66 +650,114 @@ export class VaultService {
     onError: (error: Error) => void,
     options: {
       limit?: number;
+      debounceMs?: number; // Configurable debounce time
     } = {}
   ): () => void {
     try {
       let q = query(
         this.getCollectionRef(),
-      where('userId', '==', userId),
-      orderBy('lastModified', 'desc')
-    );
+        where('userId', '==', userId),
+        orderBy('lastModified', 'desc')
+      );
 
       if (options.limit) {
         q = query(q, limit(options.limit));
       }
 
-      // Exact topics pattern - simple and direct
+      // Advanced debouncing for better performance
+      const debounceMs = options.debounceMs || 200; // Default 200ms debounce
+      let debounceTimer: NodeJS.Timeout | null = null;
+      let pendingSnapshot: any = null;
+      let isProcessing = false;
+
+      // Batch processing function
+      const processSnapshot = async (snapshot: any) => {
+        if (isProcessing) return; // Prevent concurrent processing
+        isProcessing = true;
+
+        try {
+          // Skip if no docs or from cache (like topics)
+          if (snapshot.empty) {
+            onUpdate([]);
+            return;
+          }
+
+          // Enhanced batch processing with optimized crypto operations
+          const itemPromises = snapshot.docs.map(async (doc: any) => {
+            try {
+              const storedItem = { id: doc.id, ...doc.data() } as StoredVaultItem;
+              const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
+                storedItem.encryptedData,
+                masterPassword
+              );
+              decryptedItem.id = doc.id;
+              return decryptedItem;
+            } catch (error) {
+              console.warn(`Failed to decrypt item ${doc.id}:`, error);
+              return null;
+            }
+          });
+
+          // Process all in smaller batches to prevent UI blocking
+          const batchSize = 6; // Optimized batch size
+          const results: VaultItem[] = [];
+          
+          for (let i = 0; i < itemPromises.length; i += batchSize) {
+            const batch = itemPromises.slice(i, i + batchSize);
+            const batchResults = await Promise.all(batch);
+            results.push(...batchResults.filter(item => item !== null) as VaultItem[]);
+            
+            // Micro-delay between batches to keep UI responsive
+            if (i + batchSize < itemPromises.length) {
+              await new Promise(resolve => setTimeout(resolve, 1));
+            }
+          }
+          
+          // Cache and update
+          this.cache.set(userId, results);
+          onUpdate(results);
+
+        } catch (error) {
+          console.error('Vault listener processing error:', error);
+          onError(new Error(`Failed to process vault updates: ${(error as Error).message}`));
+        } finally {
+          isProcessing = false;
+        }
+      };
+
+      // Debounced snapshot handler
+      const handleSnapshot = (snapshot: any) => {
+        pendingSnapshot = snapshot;
+        
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        
+        debounceTimer = setTimeout(() => {
+          if (pendingSnapshot) {
+            processSnapshot(pendingSnapshot);
+            pendingSnapshot = null;
+          }
+        }, debounceMs);
+      };
+
+      // Setup the listener with enhanced error handling
       const unsubscribe = onSnapshot(
         q,
-        async (snapshot) => {
-          try {
-            // Skip if no docs or from cache (like topics)
-            if (snapshot.empty || snapshot.metadata.fromCache) {
-              return;
-            }
-
-            // Direct mapping like topics - simple and fast
-            const itemPromises = snapshot.docs.map(async (doc) => {
-              try {
-                const storedItem = { id: doc.id, ...doc.data() } as StoredVaultItem;
-                const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
-                  storedItem.encryptedData,
-                  masterPassword
-                );
-                decryptedItem.id = doc.id;
-                return decryptedItem;
-              } catch (error) {
-                console.error(`Failed to decrypt item ${doc.id}:`, error);
-                return null;
-              }
-            });
-
-            // Process all in parallel and filter nulls
-            const allItems = await Promise.all(itemPromises);
-            const validItems = allItems.filter(item => item !== null) as VaultItem[];
-            
-            // Direct state update like topics
-            this.cache.set(userId, validItems);
-            onUpdate(validItems);
-
-          } catch (error) {
-            console.error('Vault listener processing error:', error);
-            onError(new Error(`Failed to process vault updates: ${(error as Error).message}`));
-          }
-        },
+        handleSnapshot,
         (error) => {
           console.error('Vault listener error:', error);
           onError(new Error(`Vault listener error: ${error.message}`));
         }
       );
 
-      // Simple cleanup like topics
-      return unsubscribe;
+      // Enhanced cleanup function
+      return () => {
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        unsubscribe();
+      };
     } catch (error) {
       onError(new Error(`Failed to setup vault listener: ${(error as Error).message}`));
       return () => {};

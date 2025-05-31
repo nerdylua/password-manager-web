@@ -5,6 +5,7 @@ import { useState, useCallback, useMemo, memo, lazy, Suspense, useEffect } from 
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { NavigationMobile } from '@/components/header-mobile';
 import { useAuth } from '@/hooks/AuthContext';
@@ -36,7 +37,8 @@ import {
   Mail,
   LogOut,
   BarChart3,
-  Share2
+  Share2,
+  Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -109,7 +111,7 @@ const SecurityFeatureCard = memo(({ feature, index }: { feature: SecurityFeature
   <Suspense fallback={<div className="h-48 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />}>
     <FloatingCard delay={index * 0.1} className="p-8">
       <div className="flex items-start space-x-6">
-        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink0 shadow-lg">
           <feature.icon className="h-8 w-8 text-white" />
         </div>
         <div className="flex-1">
@@ -357,317 +359,346 @@ export default function HomePage() {
   ], []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-100/30 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 overscroll-none">
-      {/* Optimized Animated Background Elements - reduced complexity */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <motion.div 
-          style={{ y: y1 }}
-          className="absolute top-20 left-10 w-72 h-72 bg-gradient-to-r from-blue-400/10 to-purple-400/10 rounded-full blur-3xl"
-        />
-        <motion.div 
-          style={{ y: y2 }}
-          className="absolute top-40 right-10 w-96 h-96 bg-gradient-to-r from-pink-400/10 to-orange-400/10 rounded-full blur-3xl"
-        />
-      </div>
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-100/30 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 overscroll-none">
+        {/* Optimized Animated Background Elements - reduced complexity */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <motion.div 
+            style={{ y: y1 }}
+            className="absolute top-20 left-10 w-72 h-72 bg-gradient-to-r from-blue-400/10 to-purple-400/10 rounded-full blur-3xl"
+          />
+          <motion.div 
+            style={{ y: y2 }}
+            className="absolute top-40 right-10 w-96 h-96 bg-gradient-to-r from-pink-400/10 to-orange-400/10 rounded-full blur-3xl"
+          />
+        </div>
 
-      {/* Dynamic Header - Transforms on scroll */}
-      <motion.header
-        className="fixed left-0 right-0 top-0 z-50"
-      >
-        <motion.div
-          initial={{
-            maxWidth: "100%",
-            margin: "0 auto",
-            borderRadius: "0",
-          }}
-          animate={{
-            maxWidth: isScrolled ? "68rem" : "100%",
-            margin: isScrolled ? "1rem auto" : "0 auto",
-            borderRadius: isScrolled ? "9999px" : "0",
-          }}
-          transition={{
-            duration: 0.3,
-            ease: "easeInOut",
-          }}
-          className={cn(
-            "bg-white/80 dark:bg-slate-900/80 border backdrop-blur-xl transition-all duration-300",
-            isScrolled
-              ? "mx-4 md:mx-auto shadow-xl border-gray-200/50 dark:border-gray-700/50" 
-              : "shadow-sm border-gray-200 dark:border-gray-800"
-          )}
+        {/* Dynamic Header - Transforms on scroll */}
+        <motion.header
+          className="fixed left-0 right-0 top-0 z-50"
         >
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className={cn(
-              "flex items-center justify-between transition-all duration-300",
-              isScrolled ? "h-16" : "h-20"
-            )}>
-              {/* Logo */}
-              <Link href="/" className="flex items-center space-x-3 group">
-                <motion.div 
-                  className="relative"
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                >
-                  <Lock className={cn(
-                    "text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors",
-                    isScrolled ? "h-7 w-7" : "h-8 w-8"
-                  )} />
-                </motion.div>
-                <motion.span 
-                  className="font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent"
-                  animate={{
-                    fontSize: isScrolled ? "1.25rem" : "1.5rem"
-                  }}
-                  transition={{ duration: 0.3 }}
-                >
-                  CryptLock
-                </motion.span>
-              </Link>
-
-              {/* Desktop Navigation */}
-              <Navigation 
-                user={user}
-                userProfile={userProfile}
-                masterPasswordVerified={masterPasswordVerified}
-                handleDashboardAccess={handleDashboardAccess}
-                handleLogout={handleLogout}
-                isCompact={isScrolled}
-              />
-
-              {/* Mobile Navigation */}
-              <NavigationMobile
-                user={user}
-                userProfile={userProfile}
-                masterPasswordVerified={masterPasswordVerified}
-                handleDashboardAccess={handleDashboardAccess}
-                handleLogout={handleLogout}
-                isScrolled={isScrolled}
-              />
-            </div>
-        </div>
-        </motion.div>
-      </motion.header>
-
-      {/* Spacer for fixed header */}
-      <div className="h-20" />
-
-      {/* Hero Section */}
-      <section className="relative container mx-auto px-4 py-16 md:py-24">
-        <div className="max-w-6xl mx-auto text-center">
-          {/* Announcement Banner */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="inline-flex items-center justify-center mb-8"
-          >
-            <Badge variant="secondary" className="bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 px-6 py-2 text-sm font-medium">
-              <Sparkles className="h-4 w-4 mr-2" />
-              100% Free Forever - No Hidden Costs
-            </Badge>
-          </motion.div>
-
-          {/* Hero Content */}
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="mb-12"
-          >
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-gray-900 dark:text-white mb-6 leading-tight">
-              Your Digital Life,{' '}
-              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Completely Secure
-              </span>
-            </h1>
-            <p className="text-lg md:text-xl lg:text-2xl text-gray-600 dark:text-gray-400 mb-8 max-w-4xl mx-auto leading-relaxed">
-              The world&apos;s most secure password manager with{' '}
-              <strong className="text-blue-600 dark:text-blue-400">zero-knowledge architecture</strong>.
-              Your master password never leaves your device — we literally cannot see your data.
-            </p>
-          </motion.div>
-          
-          {/* CTA Buttons */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
-          >
-            {user ? (
-              <>
-                <Button 
-                  onClick={handleDashboardAccess}
-                  size="lg" 
-                  className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl text-lg px-8 py-4 group"
-                >
-                  <BarChart3 className="mr-2 h-5 w-5" />
-                  {masterPasswordVerified ? 'Enter Dashboard' : 'Sign In to Dashboard'}
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-                {masterPasswordVerified && (
-                  <Button 
-                    onClick={handleVaultAccess}
-                    variant="outline" 
-                    size="lg" 
-                    className="w-full sm:w-auto border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-300 text-lg px-8 py-4"
-                  >
-                    <Lock className="mr-2 h-5 w-5" />
-                    Access Vault
-                  </Button>
-                )}
-              </>
-            ) : (
-              <>
-            <Link href="/auth/register">
-                  <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl text-lg px-8 py-4 group">
-                    <Rocket className="mr-2 h-5 w-5" />
-                Start Free Today
-                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
-            <Link href="/auth/login">
-                  <Button variant="outline" size="lg" className="w-full sm:w-auto border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-300 text-lg px-8 py-4">
-                Sign In
-              </Button>
-            </Link>
-              </>
+          <motion.div
+            initial={{
+              maxWidth: "100%",
+              margin: "0 auto",
+              borderRadius: "0",
+            }}
+            animate={{
+              maxWidth: isScrolled ? "68rem" : "100%",
+              margin: isScrolled ? "1rem auto" : "0 auto",
+              borderRadius: isScrolled ? "9999px" : "0",
+            }}
+            transition={{
+              duration: 0.3,
+              ease: "easeInOut",
+            }}
+            className={cn(
+              "bg-white/80 dark:bg-slate-900/80 border backdrop-blur-xl transition-all duration-300",
+              isScrolled
+                ? "mx-4 md:mx-auto shadow-xl border-gray-200/50 dark:border-gray-700/50" 
+                : "shadow-sm border-gray-200 dark:border-gray-800"
             )}
-          </motion.div>
-
-          {/* Trust Indicators */}
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12"
           >
-            <TrustIndicatorCard delay={0.1} className="p-6">
-            <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 flex items-center justify-center mb-3">
-                  <Eye className="h-8 w-8 text-green-600 dark:text-green-400" />
-                </div>
-                <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Zero-Knowledge</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">We never see your data</p>
-              </div>
-            </TrustIndicatorCard>
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              <div className={cn(
+                "flex items-center justify-between transition-all duration-300",
+                isScrolled ? "h-16" : "h-20"
+              )}>
+                {/* Logo */}
+                <Link href="/" className="flex items-center space-x-3 group">
+                  <motion.div 
+                    className="relative"
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                  >
+                    <Lock className={cn(
+                      "text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors",
+                      isScrolled ? "h-7 w-7" : "h-8 w-8"
+                    )} />
+                  </motion.div>
+                  <motion.span 
+                    className="font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent"
+                    animate={{
+                      fontSize: isScrolled ? "1.25rem" : "1.5rem"
+                    }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    CryptLock
+                  </motion.span>
+                </Link>
 
-            <TrustIndicatorCard delay={0.2} className="p-6">
+                {/* Desktop Navigation */}
+                <Navigation 
+                  user={user}
+                  userProfile={userProfile}
+                  masterPasswordVerified={masterPasswordVerified}
+                  handleDashboardAccess={handleDashboardAccess}
+                  handleLogout={handleLogout}
+                  isCompact={isScrolled}
+                />
+
+                {/* Mobile Navigation */}
+                <NavigationMobile
+                  user={user}
+                  userProfile={userProfile}
+                  masterPasswordVerified={masterPasswordVerified}
+                  handleDashboardAccess={handleDashboardAccess}
+                  handleLogout={handleLogout}
+                  isScrolled={isScrolled}
+                />
+              </div>
+            </div>
+          </motion.div>
+        </motion.header>
+
+        {/* Spacer for fixed header */}
+        <div className="h-20" />
+
+        {/* Hero Section */}
+        <section className="relative container mx-auto px-4 py-16 md:py-24">
+          <div className="max-w-6xl mx-auto text-center">
+            {/* Announcement Banner */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="inline-flex items-center justify-center mb-8"
+            >
+              <Badge variant="secondary" className="bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 px-6 py-2 text-sm font-medium">
+                <Sparkles className="h-4 w-4 mr-2" />
+                100% Free Forever - No Hidden Costs
+              </Badge>
+            </motion.div>
+
+            {/* Hero Content */}
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="mb-12"
+            >
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-gray-900 dark:text-white mb-6 leading-tight">
+                Your Digital Life,{' '}
+                <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  Completely Secure
+                </span>
+              </h1>
+              <p className="text-lg md:text-xl lg:text-2xl text-gray-600 dark:text-gray-400 mb-8 max-w-4xl mx-auto leading-relaxed">
+                The world&apos;s most secure password manager with{' '}
+                <strong className="text-blue-600 dark:text-blue-400">zero-knowledge architecture</strong>.
+                Your master password never leaves your device — we literally cannot see your data.
+              </p>
+            </motion.div>
+            
+            {/* CTA Buttons */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
+            >
+              {user ? (
+                <>
+                  <Button 
+                    onClick={handleDashboardAccess}
+                    size="lg" 
+                    className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl text-lg px-8 py-4 group"
+                  >
+                    <BarChart3 className="mr-2 h-5 w-5" />
+                    {masterPasswordVerified ? 'Enter Dashboard' : 'Sign In to Dashboard'}
+                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                  {masterPasswordVerified && (
+                    <Button 
+                      onClick={handleVaultAccess}
+                      variant="outline" 
+                      size="lg" 
+                      className="w-full sm:w-auto border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-300 text-lg px-8 py-4"
+                    >
+                      <Lock className="mr-2 h-5 w-5" />
+                      Access Vault
+                    </Button>
+                  )}
+                  
+                  {/* Loading Information Tooltip for Logged-in Users */}
+                  <div className="flex items-center mt-4 sm:mt-0 sm:ml-4">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 cursor-help">
+                          <Info className="h-4 w-4 mr-1.5" />
+                          <span className="hidden sm:inline">Loading Info</span>
+                          <span className="sm:hidden">Info</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <div className="text-sm space-y-2">
+                          <div className="font-semibold text-blue-600 dark:text-blue-400">
+                            📊 Dashboard & 🔐 Vault Loading Times
+                          </div>
+                          <div className="space-y-1 text-xs">
+                            <p><strong>Initial Load:</strong> 2-5 seconds (decrypting your data)</p>
+                            <p><strong>Real-time Updates:</strong> Instant sync across all devices</p>
+                            <p><strong>Security:</strong> All decryption happens locally in your browser</p>
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-300 pt-1 border-t border-gray-200 dark:border-gray-600">
+                            Loading time depends on vault size and connection speed
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </>
+              ) : (
+                <>
+              <Link href="/auth/register">
+                    <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl text-lg px-8 py-4 group">
+                      <Rocket className="mr-2 h-5 w-5" />
+                  Start Free Today
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+              <Link href="/auth/login">
+                    <Button variant="outline" size="lg" className="w-full sm:w-auto border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-300 text-lg px-8 py-4">
+                  Sign In
+                </Button>
+              </Link>
+                </>
+              )}
+            </motion.div>
+
+            {/* Trust Indicators */}
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12"
+            >
+              <TrustIndicatorCard delay={0.1} className="p-6">
               <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/50 flex items-center justify-center mb-3">
-                  <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 flex items-center justify-center mb-3">
+                    <Eye className="h-8 w-8 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Zero-Knowledge</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">We never see your data</p>
                 </div>
-                <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">AES-256 Encryption</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Military-grade security</p>
-            </div>
-            </TrustIndicatorCard>
+              </TrustIndicatorCard>
 
-            <TrustIndicatorCard delay={0.3} className="p-6">
-            <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/50 dark:to-purple-800/50 flex items-center justify-center mb-3">
-                  <Globe className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-                </div>
-                <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Cross-Platform</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Access everywhere</p>
+              <TrustIndicatorCard delay={0.2} className="p-6">
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/50 flex items-center justify-center mb-3">
+                    <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">AES-256 Encryption</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Military-grade security</p>
               </div>
-            </TrustIndicatorCard>
+              </TrustIndicatorCard>
 
-            <TrustIndicatorCard delay={0.4} className="p-6">
+              <TrustIndicatorCard delay={0.3} className="p-6">
               <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-100 to-pink-200 dark:from-pink-900/50 dark:to-pink-800/50 flex items-center justify-center mb-3">
-                  <Heart className="h-8 w-8 text-pink-600 dark:text-pink-400" />
-            </div>
-                <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">100% Free</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Forever & always</p>
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/50 dark:to-purple-800/50 flex items-center justify-center mb-3">
+                    <Globe className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Cross-Platform</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Access everywhere</p>
+                </div>
+              </TrustIndicatorCard>
+
+              <TrustIndicatorCard delay={0.4} className="p-6">
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-100 to-pink-200 dark:from-pink-900/50 dark:to-pink-800/50 flex items-center justify-center mb-3">
+                    <Heart className="h-8 w-8 text-pink-600 dark:text-pink-400" />
               </div>
-            </TrustIndicatorCard>
-          </motion.div>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">100% Free</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Forever & always</p>
+                </div>
+              </TrustIndicatorCard>
+            </motion.div>
 
-          {/* Stats - Optimized for faster render */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.6 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12"
-          >
-            {stats.map((stat, index) => (
-              <StatCard key={index} stat={stat} index={index} />
-            ))}
-          </motion.div>
+            {/* Stats - Optimized for faster render */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.6 }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12"
+            >
+              {stats.map((stat, index) => (
+                <StatCard key={index} stat={stat} index={index} />
+              ))}
+            </motion.div>
 
-          {/* Launch Announcement - Reduced animation delay */}
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.8 }}
-            className="flex items-center justify-center space-x-2 text-gray-600 dark:text-gray-400"
-          >
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="font-semibold">Available now</span>
-              <span>•</span>
-              <span>Built with modern security standards</span>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Section - Now includes Security Architecture */}
-      <Suspense fallback={<div className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
-        <ParallaxSection>
-          <section id="features" className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm">
-        <div className="container mx-auto px-4">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                viewport={{ once: true, margin: "-50px" }}
-                className="text-center mb-16"
-              >
-                <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
-                  Complete Password Security Solution
-            </h2>
-                <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                  Advanced features powered by bank-level security architecture. Everything you need for password security with enterprise-grade protection.
-                </p>
-              </motion.div>
-
-              {/* Core Features */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
-                {features.map((feature, index) => (
-                  <FeatureCard key={index} feature={feature} index={index} />
-                ))}
+            {/* Launch Announcement - Reduced animation delay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.8 }}
+              className="flex items-center justify-center space-x-2 text-gray-600 dark:text-gray-400"
+            >
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="font-semibold">Available now</span>
+                <span>•</span>
+                <span>Built with modern security standards</span>
+              </div>
+            </motion.div>
           </div>
+        </section>
 
-              {/* Security Architecture Section */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                viewport={{ once: true, margin: "-50px" }}
-                className="text-center mb-16"
-              >
-                <div className="inline-flex items-center justify-center mb-6">
-                  <Badge variant="secondary" className="bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 px-6 py-2 text-sm font-medium">
-                    <Shield className="h-4 w-4 mr-2" />
-                    Bank-Level Security Architecture
-                  </Badge>
-                </div>
-                <h3 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-6">
-                  Military-Grade Protection
-                </h3>
-                <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-12">
-                  Built with privacy-first principles and zero-knowledge architecture. Your data is encrypted before it ever leaves your device.
-                </p>
-              </motion.div>
+        {/* Features Section - Now includes Security Architecture */}
+        <Suspense fallback={<div className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
+          <ParallaxSection>
+            <section id="features" className="py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm">
+          <div className="container mx-auto px-4">
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  className="text-center mb-16"
+                >
+                  <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
+                    Complete Password Security Solution
+              </h2>
+                  <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                    Advanced features powered by bank-level security architecture. Everything you need for password security with enterprise-grade protection.
+                  </p>
+                </motion.div>
 
-              {/* Security Features */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {securityFeatures.map((feature, index) => (
-                  <SecurityFeatureCard key={index} feature={feature} index={index} />
-                ))}
-              </div>
+                {/* Core Features */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
+                  {features.map((feature, index) => (
+                    <FeatureCard key={index} feature={feature} index={index} />
+                  ))}
+            </div>
+
+                {/* Security Architecture Section */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  className="text-center mb-16"
+                >
+                  <div className="inline-flex items-center justify-center mb-6">
+                    <Badge variant="secondary" className="bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 px-6 py-2 text-sm font-medium">
+                      <Shield className="h-4 w-4 mr-2" />
+                      Bank-Level Security Architecture
+                    </Badge>
+                  </div>
+                  <h3 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-6">
+                    Military-Grade Protection
+                  </h3>
+                  <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-12">
+                    Built with privacy-first principles and zero-knowledge architecture. Your data is encrypted before it ever leaves your device.
+                  </p>
+                </motion.div>
+
+                {/* Security Features */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {securityFeatures.map((feature, index) => (
+                    <SecurityFeatureCard key={index} feature={feature} index={index} />
+                  ))}
                 </div>
+                  </div>
           </section>
         </ParallaxSection>
       </Suspense>
@@ -1007,5 +1038,6 @@ export default function HomePage() {
         </div>
       </footer>
     </div>
-  );
+  </TooltipProvider>
+);
 }
