@@ -725,7 +725,7 @@ export default function HomePage() {
                   See What We Actually Store
                 </h2>
                 <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                  This is what your data looks like in our database. Even our developers can't read it.
+                  This is what your data looks like in our database. Even our devs can't read it.
                 </p>
               </motion.div>
 
@@ -956,7 +956,7 @@ export default function HomePage() {
                       <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-blue-600 transition-all duration-300" asChild>
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto text-lg px-8 py-4 bg-white/10 border-white text-white hover:bg-white hover:text-blue-600 transition-all duration-300 backdrop-blur-sm" asChild>
                     <a href="https://github.com/nerdylua/password-manager-web" target="_blank" rel="noopener noreferrer">
                       <Github className="mr-2 h-5 w-5" />
                       View on GitHub
