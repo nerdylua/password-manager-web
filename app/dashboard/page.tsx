@@ -547,11 +547,12 @@ function DashboardContent() {
 
   // Cleanup on unmount
   useEffect(() => {
+    const currentCache = dashboardCache.current;
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      dashboardCache.current.clear();
+      currentCache.clear();
     };
   }, []);
 

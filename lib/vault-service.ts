@@ -16,7 +16,9 @@ import {
   writeBatch,
   enableNetwork,
   disableNetwork,
-  runTransaction
+  runTransaction,
+  QuerySnapshot,
+  DocumentData
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { ZeroKnowledgeEncryption, EncryptedData, VaultItem } from './encryption';
@@ -667,11 +669,11 @@ export class VaultService {
       // Advanced debouncing for better performance
       const debounceMs = options.debounceMs || 200; // Default 200ms debounce
       let debounceTimer: NodeJS.Timeout | null = null;
-      let pendingSnapshot: any = null;
+      let pendingSnapshot: QuerySnapshot<DocumentData> | null = null;
       let isProcessing = false;
 
       // Batch processing function
-      const processSnapshot = async (snapshot: any) => {
+      const processSnapshot = async (snapshot: QuerySnapshot<DocumentData>) => {
         if (isProcessing) return; // Prevent concurrent processing
         isProcessing = true;
 
@@ -683,7 +685,7 @@ export class VaultService {
           }
 
           // Enhanced batch processing with optimized crypto operations
-          const itemPromises = snapshot.docs.map(async (doc: any) => {
+          const itemPromises = snapshot.docs.map(async (doc: DocumentSnapshot<DocumentData>) => {
             try {
               const storedItem = { id: doc.id, ...doc.data() } as StoredVaultItem;
               const decryptedItem = ZeroKnowledgeEncryption.decryptVaultItem(
@@ -726,7 +728,7 @@ export class VaultService {
       };
 
       // Debounced snapshot handler
-      const handleSnapshot = (snapshot: any) => {
+      const handleSnapshot = (snapshot: QuerySnapshot<DocumentData>) => {
         pendingSnapshot = snapshot;
         
         if (debounceTimer) {
