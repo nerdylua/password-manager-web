@@ -94,11 +94,11 @@ graph TD
 <div align="center">
 
 ### 🏠 Landing Page
-![CryptLock Home Page](https://github.com/user-attachments/assets/4c8f5f7d-5826-4aa6-9ef3-f5b8e6b11b7e)
+![Screenshot 2025-05-31 042845](https://github.com/user-attachments/assets/c0c2f2fc-185b-40c3-9fcc-588e6c10262e)
 *Zero-knowledge security with beautiful, modern design*
 
 ### 📊 Security Dashboard  
-![CryptLock Dashboard](https://github.com/user-attachments/assets/b8cf4c5a-5c6e-428a-a39e-64c4f5d5c556)
+![Screenshot 2025-05-31 031509](https://github.com/user-attachments/assets/384d50cd-218a-4f33-a8f1-5851f8821ff0)
 *Real-time security insights and vault management*
 
 </div>
