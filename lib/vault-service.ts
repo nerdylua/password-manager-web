@@ -883,4 +883,48 @@ export class VaultService {
     this.cache.clear();
     this.pendingRequests.clear();
   }
+
+  /**
+   * Get vault modification info for smart change detection
+   */
+  static async getVaultModificationInfo(userId: string): Promise<{
+    lastModified: number;
+    itemCount: number;
+    changeHash: string;
+  }> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTION_NAME),
+        where('userId', '==', userId),
+        orderBy('lastModified', 'desc'),
+        limit(1)
+      );
+
+      const [countSnapshot, latestSnapshot] = await Promise.all([
+        getDocs(query(collection(db, this.COLLECTION_NAME), where('userId', '==', userId))),
+        getDocs(q)
+      ]);
+
+      const itemCount = countSnapshot.size;
+      const lastModified = latestSnapshot.docs.length > 0 
+        ? latestSnapshot.docs[0].data().lastModified 
+        : 0;
+
+      // Create a simple change hash based on count and last modified time
+      const changeHash = `${itemCount}-${lastModified}`;
+
+      return {
+        lastModified,
+        itemCount,
+        changeHash
+      };
+    } catch (error) {
+      console.error('Failed to get vault modification info:', error);
+      return {
+        lastModified: Date.now(),
+        itemCount: 0,
+        changeHash: `0-${Date.now()}`
+      };
+    }
+  }
 } 

@@ -54,6 +54,7 @@ interface VaultPageState {
   selectedCategory: 'all' | 'login' | 'secure-note' | 'credit-card' | 'identity';
   viewMode: 'grid' | 'list';
   showPasswords: Record<string, boolean>;
+  loadingProgress: { current: number; total: number; stage: string };
 }
 
 // Security issue detection functions
@@ -107,6 +108,7 @@ function VaultContent() {
     selectedCategory: 'all',
     viewMode: 'grid',
     showPasswords: {},
+    loadingProgress: { current: 0, total: 0, stage: '' }
   });
 
   // Security highlighting state
@@ -179,25 +181,64 @@ function VaultContent() {
       return;
     }
 
-    setState(prev => ({ ...prev, loading: true }));
+    setState(prev => ({ 
+      ...prev, 
+      loading: true,
+      loadingProgress: { current: 0, total: 4, stage: 'Initializing vault connection...' }
+    }));
 
-    // Preload for instant access
+    // Stage 1: Preload for instant access
+    setState(prev => ({ 
+      ...prev, 
+      loadingProgress: { current: 1, total: 4, stage: 'Establishing secure connection...' }
+    }));
     VaultService.preloadVaultData(user.uid, masterPassword);
+    
+    // Stage 2: Setting up real-time sync
+    setState(prev => ({ 
+      ...prev, 
+      loadingProgress: { current: 2, total: 4, stage: 'Setting up real-time sync...' }
+    }));
     
     // Direct listener setup with optimized debouncing
     const unsubscribe = VaultService.setupVaultListener(
       user.uid,
       masterPassword,
       (items) => {
-        // Direct state update like topics
+        // Stage 3: Processing encrypted data
         setState(prev => ({ 
           ...prev, 
-          items, 
-          filteredItems: prev.selectedCategory === 'all' ? items : items.filter(item => 
-            item.category === prev.selectedCategory
-          ),
-          loading: false 
+          loadingProgress: { current: 3, total: 4, stage: 'Decrypting vault data...' }
         }));
+        
+        // Use requestIdleCallback to prevent blocking the main thread
+        if (window.requestIdleCallback) {
+          window.requestIdleCallback(() => {
+            // Stage 4: Final processing
+            setState(prev => ({ 
+              ...prev, 
+              items, 
+              filteredItems: prev.selectedCategory === 'all' ? items : items.filter(item => 
+                item.category === prev.selectedCategory
+              ),
+              loading: false,
+              loadingProgress: { current: 4, total: 4, stage: 'Vault ready!' }
+            }));
+          }, { timeout: 100 });
+        } else {
+          // Fallback for browsers without requestIdleCallback
+          setTimeout(() => {
+            setState(prev => ({ 
+              ...prev, 
+              items, 
+              filteredItems: prev.selectedCategory === 'all' ? items : items.filter(item => 
+                item.category === prev.selectedCategory
+              ),
+              loading: false,
+              loadingProgress: { current: 4, total: 4, stage: 'Vault ready!' }
+            }));
+          }, 50);
+        }
       },
       (error) => {
         console.error('Vault listener error:', error);
@@ -211,8 +252,8 @@ function VaultContent() {
         );
       },
       { 
-        limit: 100,
-        debounceMs: 300 // Optimized debounce time for better performance
+        limit: 150, // Increased limit for better performance
+        debounceMs: 200 // Optimized debounce time for better performance
       }
     );
 
@@ -2020,25 +2061,29 @@ function VaultContent() {
 
               {/* Vault Items */}
               {state.loading ? (
-                <div className="flex items-center justify-center py-16">
-                  <div className="bg-white dark:bg-gray-800 rounded-lg border shadow-sm p-8 max-w-md w-full">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-shrink-0">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border shadow-sm p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex-shrink-0">
+                      <RefreshCw className="h-6 w-6 text-blue-600 dark:text-blue-400 animate-spin" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {state.loadingProgress.stage}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {state.loadingProgress.current}/{state.loadingProgress.total}
+                        </span>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                          Decrypting Your Vault
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                          Loading and decrypting your vault items with zero-knowledge encryption...
-                        </p>
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                          All decryption happens locally in your browser for maximum security
-                        </p>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3">
+                        <div 
+                          className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${(state.loadingProgress.current / state.loadingProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+                        <Shield className="h-3 w-3" />
+                        <span>Zero-knowledge decryption happening locally in your browser</span>
                       </div>
                     </div>
                   </div>

@@ -522,7 +522,7 @@ export default function HomePage() {
                   
                   {/* Loading Information Tooltip for Logged-in Users */}
                   <div className="flex items-center mt-4 sm:mt-0 sm:ml-4">
-                    <Tooltip>
+                    <Tooltip delayDuration={0}>
                       <TooltipTrigger asChild>
                         <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 cursor-help">
                           <Info className="h-4 w-4 mr-1.5" />
@@ -530,7 +530,7 @@ export default function HomePage() {
                           <span className="sm:hidden">Info</span>
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs">
+                      <TooltipContent side="bottom" className="max-w-xs" sideOffset={5}>
                         <div className="text-sm space-y-2">
                           <div className="font-semibold text-blue-600 dark:text-blue-400">
                             📊 Dashboard & 🔐 Vault Loading Times

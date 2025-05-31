@@ -56,12 +56,14 @@ interface DashboardData {
     securityScore: number;
   };
   lastFetch: number;
+  changeHash?: string; // For smart change detection
 }
 
-// Optimized dashboard cache with better memory management
+// Optimized dashboard cache with better memory management and change detection
 class DashboardCache {
   private static instance: DashboardCache;
   private cache = new Map<string, DashboardData>();
+  private changeHashes = new Map<string, string>(); // Track vault change hashes
   private readonly CACHE_TTL = 300000; // 5 minutes
   private cleanupTimer: NodeJS.Timeout | null = null;
 
@@ -79,34 +81,72 @@ class DashboardCache {
       for (const [key, data] of this.cache.entries()) {
         if (now - data.lastFetch > this.CACHE_TTL) {
           this.cache.delete(key);
+          this.changeHashes.delete(key);
         }
       }
     }, 60000); // Cleanup every minute
   }
 
-  get(userId: string): DashboardData | null {
+  async get(userId: string): Promise<DashboardData | null> {
     const cached = this.cache.get(userId);
     if (!cached) return null;
     
     if (Date.now() - cached.lastFetch > this.CACHE_TTL) {
       this.cache.delete(userId);
+      this.changeHashes.delete(userId);
       return null;
+    }
+    
+    // Check if vault has changed
+    try {
+      const { VaultService } = await import('@/lib/vault-service');
+      const vaultInfo = await VaultService.getVaultModificationInfo(userId);
+      const currentHash = this.changeHashes.get(userId);
+      
+      if (currentHash && currentHash !== vaultInfo.changeHash) {
+        // Vault has changed, invalidate cache
+        this.cache.delete(userId);
+        this.changeHashes.delete(userId);
+        return null;
+      }
+      
+      // Update hash if needed
+      if (!currentHash) {
+        this.changeHashes.set(userId, vaultInfo.changeHash);
+      }
+    } catch (error) {
+      console.warn('Failed to check vault changes:', error);
+      // If we can't check changes, return cached data
     }
     
     return cached;
   }
 
-  set(userId: string, data: DashboardData): void {
-    this.cache.set(userId, { ...data, lastFetch: Date.now() });
+  async set(userId: string, data: DashboardData): Promise<void> {
+    const dataWithTimestamp = { ...data, lastFetch: Date.now() };
+    this.cache.set(userId, dataWithTimestamp);
+    
+    // Store current change hash
+    try {
+      const { VaultService } = await import('@/lib/vault-service');
+      const vaultInfo = await VaultService.getVaultModificationInfo(userId);
+      this.changeHashes.set(userId, vaultInfo.changeHash);
+      dataWithTimestamp.changeHash = vaultInfo.changeHash;
+    } catch (error) {
+      console.warn('Failed to store change hash:', error);
+    }
+    
     this.startCleanupTimer();
   }
 
   invalidate(userId: string): void {
     this.cache.delete(userId);
+    this.changeHashes.delete(userId);
   }
 
   clear(): void {
     this.cache.clear();
+    this.changeHashes.clear();
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
@@ -295,7 +335,7 @@ function DashboardContent() {
 
       // Check cache first for instant loading
       if (!forceRefresh) {
-        const cached = dashboardCache.current.get(user.uid);
+        const cached = await dashboardCache.current.get(user.uid);
         if (cached) {
           setDashboardData(cached);
           setLoadingItems(false);
@@ -324,7 +364,7 @@ function DashboardContent() {
       };
 
       // Update cache and state
-      dashboardCache.current.set(user.uid, newDashboardData);
+      await dashboardCache.current.set(user.uid, newDashboardData);
       setDashboardData(newDashboardData);
 
     } catch (error: unknown) {
@@ -359,7 +399,7 @@ function DashboardContent() {
     
     try {
       if (user) {
-        dashboardCache.current.invalidate(user.uid);
+        await dashboardCache.current.invalidate(user.uid);
       }
       await loadDashboardData(true);
       toast.success('Dashboard refreshed!', { id: 'dashboard-refresh' });
