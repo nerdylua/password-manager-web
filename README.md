@@ -134,7 +134,7 @@ CryptLock includes a powerful browser extension that automatically detects passw
    - **Firefox**: Go to `about:debugging` → Load Temporary Add-on → Select manifest.json
 4. **Use**: Visit any website, type in password fields, click "Save to CryptLock"
 
-> 📁 **Extension files are in the `/extension` folder** - see [Extension README](./extension/README.md) for detailed setup instructions.
+> 📁 **Extension files are in the `/extension` folder** 
 
 ## 🚀 Quick Start
 
