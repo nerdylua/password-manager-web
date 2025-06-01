@@ -132,18 +132,15 @@ function LoginContent() {
       // Fully log out the user (clears both Firebase auth and vault session)
       await logout();
       
-      // Immediately redirect to home page to break any potential redirect loops
-      router.replace('/');
+      // Use window.location.href for complete page reload to break any React state issues
+      window.location.href = '/';
       
-      // Show success message
+      // Show success message (though user might not see it due to redirect)
       toast.success('Logged out successfully');
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if logout fails, redirect to home page for clean state
-      router.replace('/');
-      toast.error('Logout failed, but redirecting to clean state');
-    } finally {
-      setLoading(false);
+      // Even if logout fails, force redirect to home page with complete reload
+      window.location.href = '/';
     }
   };
 
