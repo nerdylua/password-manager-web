@@ -36,7 +36,8 @@ import {
   Mail,
   LogOut,
   BarChart3,
-  Info
+  Info,
+  Download
 } from 'lucide-react';
 
 // Lazy load additional icons only when needed
@@ -189,12 +190,15 @@ const Navigation = memo(({
   isCompact
 }: NavigationProps) => (
   <nav className={cn(
-    "hidden md:flex items-center space-x-8",
+    "hidden md:flex items-center space-x-6",
     isCompact ? "h-16" : "h-20"
   )}>
     <Link href="#features" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
               Features
             </Link>
+    <Link href="#extension" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
+      Extension
+    </Link>
     <Link href="#privacy" className="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors font-medium">
       Privacy Proof
     </Link>
@@ -747,6 +751,245 @@ export default function HomePage() {
         </ParallaxSection>
       </Suspense>
 
+      {/* Browser Extension Section */}
+      <Suspense fallback={<div className="py-20 bg-gradient-to-br from-purple-50/50 to-blue-50/50 dark:from-purple-950/20 dark:to-blue-950/20"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
+        <ParallaxSection>
+          <section id="extension" className="py-20 bg-gradient-to-br from-purple-50/50 to-blue-50/50 dark:from-purple-950/20 dark:to-blue-950/20">
+            <div className="container mx-auto px-4">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                viewport={{ once: true, margin: "-50px" }}
+                className="text-center mb-16"
+              >
+                <div className="inline-flex items-center justify-center mb-6">
+                  <Badge variant="secondary" className="bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/50 dark:to-blue-900/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700 px-6 py-2 text-sm font-medium">
+                    <Globe className="h-4 w-4 mr-2" />
+                    Browser Extension
+                  </Badge>
+                </div>
+                <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
+                  Save Passwords with One Click
+                </h2>
+                <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                  Install our browser extension to automatically detect password fields and save them directly to your CryptLock vault with a single click.
+                </p>
+              </motion.div>
+
+              <div className="max-w-6xl mx-auto">
+                {/* Extension Demo */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  viewport={{ once: true }}
+                  className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mb-12 border border-gray-200 dark:border-gray-700"
+                >
+                  <div className="flex flex-col lg:flex-row items-center gap-8">
+                    {/* Demo Image/Video Area */}
+                    <div className="flex-1">
+                      <div className="relative bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-xl p-6 min-h-[300px] flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Globe className="h-8 w-8 text-white" />
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Browser Extension Demo
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Visit any website → Type password → Click "Save to CryptLock" → Done!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Extension Info */}
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                        How It Works
+                      </h3>
+                      <ul className="space-y-4 mb-6">
+                        <li className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                          <span className="text-gray-600 dark:text-gray-400">
+                            <strong>Auto-detects</strong> password fields on any website
+                          </span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                          <span className="text-gray-600 dark:text-gray-400">
+                            <strong>One-click save</strong> with "Save to CryptLock" button
+                          </span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                          <span className="text-gray-600 dark:text-gray-400">
+                            <strong>Zero-knowledge</strong> - passwords never stored locally
+                          </span>
+                        </li>
+                        <li className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                          <span className="text-gray-600 dark:text-gray-400">
+                            <strong>Works everywhere</strong> - Gmail, GitHub, Banking, etc.
+                          </span>
+                        </li>
+                      </ul>
+
+                      {/* Download Button */}
+                      <Button 
+                        onClick={() => {
+                          // Create and download zip file
+                          const link = document.createElement('a');
+                          link.href = '/api/download-extension';
+                          link.download = 'cryptlock-extension.zip';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          toast.success('Extension package downloaded! Follow setup instructions below.');
+                        }}
+                        size="lg" 
+                        className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                      >
+                        <Download className="mr-2 h-5 w-5" />
+                        Download Extension
+                        <ArrowRight className="ml-2 h-5 w-5" />
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Setup Instructions */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.4 }}
+                  viewport={{ once: true }}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-8"
+                >
+                  {/* Chrome Setup */}
+                  <TrustIndicatorCard delay={0.1} className="p-8">
+                    <div className="flex items-center mb-6">
+                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mr-4">
+                        <Globe className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Chrome/Edge Setup</h3>
+                        <p className="text-blue-600 dark:text-blue-400 text-sm">For Chromium-based browsers</p>
+                      </div>
+                    </div>
+                    <ol className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                      <li className="flex items-start">
+                        <span className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">1</span>
+                        <span>Download and extract the extension package</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">2</span>
+                        <span>Go to <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">chrome://extensions/</code></span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">3</span>
+                        <span>Enable "Developer mode" (top right toggle)</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">4</span>
+                        <span>Click "Load unpacked" and select the extension folder</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">5</span>
+                        <span>Pin the extension for easy access and do not delete the folder</span>
+                      </li>
+                    </ol>
+                  </TrustIndicatorCard>
+
+                  {/* Firefox Setup */}
+                  <TrustIndicatorCard delay={0.2} className="p-8">
+                    <div className="flex items-center mb-6">
+                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center mr-4">
+                        <Globe className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Firefox Setup</h3>
+                        <p className="text-orange-600 dark:text-orange-400 text-sm">For Firefox browser</p>
+                      </div>
+                    </div>
+                    <ol className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                      <li className="flex items-start">
+                        <span className="bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">1</span>
+                        <span>Download and extract the extension package</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">2</span>
+                        <span>Go to <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">about:debugging</code></span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">3</span>
+                        <span>Click "This Firefox" in the sidebar</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">4</span>
+                        <span>Click "Load Temporary Add-on" and select manifest.json</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">5</span>
+                        <span className="text-yellow-600 dark:text-yellow-400">Note: Extension resets when Firefox closes</span>
+                      </li>
+                    </ol>
+                  </TrustIndicatorCard>
+                </motion.div>
+
+                {/* Requirements & Troubleshooting */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.6 }}
+                  viewport={{ once: true }}
+                  className="mt-12 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-8 border border-blue-200 dark:border-blue-700"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Requirements */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                        <Info className="h-5 w-5 mr-2 text-blue-600 dark:text-blue-400" />
+                        Requirements
+                      </h3>
+                      <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                        <li className="flex items-center">
+                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                          CryptLock web app accessible (localhost:3000 if local)
+                        </li>
+                        <li className="flex items-center">
+                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                          Chrome/Edge/Firefox browser
+                        </li>
+                        <li className="flex items-center">
+                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                          Developer mode enabled (Chrome/Edge)
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Troubleshooting */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                        <LazyAlertTriangle className="h-5 w-5 mr-2 text-yellow-600 dark:text-yellow-400" />
+                        Troubleshooting
+                      </h3>
+                      <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                        <li>• Button not appearing? Refresh the page after installation</li>
+                        <li>• Extension not working? Ensure CryptLock is running</li>
+                        <li>• Service worker issues? Reload the extension</li>
+                        <li>• Need help? Check browser console for errors</li>
+                      </ul>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </div>
+          </section>
+        </ParallaxSection>
+      </Suspense>
+
       {/* Proof of Privacy Section */}
       <Suspense fallback={<div className="py-20 bg-gradient-to-br from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20"><div className="container mx-auto px-4"><div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
         <ParallaxSection>
@@ -1050,6 +1293,7 @@ export default function HomePage() {
               <h3 className="text-lg font-semibold mb-4">Product</h3>
               <ul className="space-y-2 text-gray-400">
                 <li><Link href="#features" className="hover:text-white transition-colors">Features</Link></li>
+                <li><Link href="#extension" className="hover:text-white transition-colors">Extension</Link></li>
                 <li><Link href="#privacy" className="hover:text-white transition-colors">Privacy Proof</Link></li>
                 <li><Link href="/auth/register" className="hover:text-white transition-colors">Get Started</Link></li>
                 <li><Link href="/auth/login" className="hover:text-white transition-colors">Sign In</Link></li>

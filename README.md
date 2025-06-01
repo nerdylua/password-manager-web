@@ -21,6 +21,7 @@
 - [🔒 Security Architecture](#-security-architecture)
 - [📸 Screenshots](#-screenshots)
 - [✨ Features](#-features)
+- [✨ Browser Extension](#-browser-extension)
 - [🚀 Quick Start](#-quick-start)
 - [🏗️ Tech Stack](#️-tech-stack)
 - [📁 Project Structure](#-project-structure)
@@ -113,6 +114,27 @@ graph TD
 - 💾 **Offline Support** - Works without internet connection with local caching
 - 📱 **Cross-Platform Ready** - Responsive web app design
 - 🛡️ **Route Protection** - Automatic authentication guards and session management
+
+## 🌐 Browser Extension
+
+CryptLock includes a powerful browser extension that automatically detects password fields and saves them to your vault with one click.
+
+### ✨ Extension Features
+- 🎯 **Auto-Detection** - Automatically finds password fields on any website
+- 💾 **One-Click Save** - Save passwords directly from any website
+- 🔒 **Zero-Knowledge** - Passwords go directly to your encrypted vault
+- 🌍 **Universal** - Works on Gmail, GitHub, banking sites, and more
+- 🚫 **No Local Storage** - Extension never stores passwords locally
+
+### 📦 Installation
+1. **Download**: Visit your CryptLock homepage and click "Download Extension"
+2. **Extract**: Unzip the downloaded file to a folder
+3. **Install**:
+   - **Chrome/Edge**: Go to `chrome://extensions/` → Enable Developer mode → Load unpacked
+   - **Firefox**: Go to `about:debugging` → Load Temporary Add-on → Select manifest.json
+4. **Use**: Visit any website, type in password fields, click "Save to CryptLock"
+
+> 📁 **Extension files are in the `/extension` folder** - see [Extension README](./extension/README.md) for detailed setup instructions.
 
 ## 🚀 Quick Start
 
