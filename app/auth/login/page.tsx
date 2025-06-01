@@ -132,22 +132,16 @@ function LoginContent() {
       // Fully log out the user (clears both Firebase auth and vault session)
       await logout();
       
-      // The logout will trigger onAuthStateChanged which will redirect to login
-      // But we can also show a success message
+      // Immediately redirect to home page to break any potential redirect loops
+      router.replace('/');
+      
+      // Show success message
       toast.success('Logged out successfully');
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if logout fails, clear local state and redirect
-      setError('');
-      setMasterPassword('');
-      setStep('login');
-      
-      // Clear step parameter and redirect to clean login
-      const loginUrl = new URL('/auth/login', window.location.origin);
-      loginUrl.searchParams.set('redirectTo', redirectTo);
-      router.replace(loginUrl.toString());
-      
-      toast.error('Logout failed, but session cleared');
+      // Even if logout fails, redirect to home page for clean state
+      router.replace('/');
+      toast.error('Logout failed, but redirecting to clean state');
     } finally {
       setLoading(false);
     }
