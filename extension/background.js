@@ -48,7 +48,7 @@ async function handleOpenDashboard(sendResponse) {
     } else {
       console.log('No existing CryptLock tab found, opening new tab...');
       // Default to main production domain
-      targetUrl = 'https://cryptlock.me/dashboard';
+      targetUrl = 'https://cryptlock-ashy.vercel.app/dashboard';
       
       // Open new CryptLock dashboard tab
       const tab = await chrome.tabs.create({ 
@@ -75,8 +75,7 @@ async function findCryptLockTabs() {
     const tabs = await chrome.tabs.query({
       url: [
         'http://localhost:3000/*', 
-        'https://cryptlock-chi.vercel.app/*',
-        'https://cryptlock.me/*'
+        'https://cryptlock-ashy.vercel.app/*'
       ]
     });
     console.log(`Found ${tabs.length} CryptLock tabs`);

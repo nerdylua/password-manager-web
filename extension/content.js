@@ -8,8 +8,7 @@
   const cryptlockDomains = [
     'localhost',
     '127.0.0.1',
-    'cryptlock-chi.vercel.app',
-    'cryptlock.me'
+    'cryptlock-ashy.vercel.app/'
   ];
 
   // Check if we're on a CryptLock domain
@@ -176,7 +175,7 @@
       } else {
         // Fallback - direct window open (will use main production domain)
         showNotification('Opening CryptLock dashboard...', 'info');
-        window.open('https://cryptlock.me/dashboard', '_blank');
+        window.open('https://cryptlock-ashy.vercel.app/dashboard', '_blank');
       }
     });
 

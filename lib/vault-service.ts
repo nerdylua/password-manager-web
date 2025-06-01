@@ -486,10 +486,10 @@ export class VaultService {
             decryptedItem.id = doc.id;
             return decryptedItem;
         } catch (error) {
-          console.error(`Failed to decrypt item ${doc.id}:`, error);
-            return null;
-          }
-        });
+          // Silently skip corrupted items instead of logging sensitive data
+          return null;
+        }
+      });
 
         const batchResults = await Promise.all(batchPromises);
         items.push(...batchResults.filter(item => item !== null) as VaultItem[]);
@@ -538,7 +538,8 @@ export class VaultService {
           decryptedItem.id = doc.id;
           items.push(decryptedItem);
         } catch (error) {
-          console.error(`Failed to decrypt item ${doc.id}:`, error);
+          // Silently skip corrupted items instead of logging sensitive data
+          continue;
         }
       }
 
@@ -600,7 +601,8 @@ export class VaultService {
           decryptedItem.id = doc.id;
           items.push(decryptedItem);
         } catch (error) {
-          console.error(`Failed to decrypt item ${doc.id}:`, error);
+          // Silently skip corrupted items instead of logging sensitive data
+          continue;
         }
       }
 
@@ -695,7 +697,7 @@ export class VaultService {
               decryptedItem.id = doc.id;
               return decryptedItem;
             } catch (error) {
-              console.warn(`Failed to decrypt item ${doc.id}:`, error);
+              // Silently skip corrupted items instead of logging sensitive data
               return null;
             }
           });

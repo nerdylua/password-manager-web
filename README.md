@@ -11,7 +11,7 @@
 **A secure, zero-knowledge password manager with end-to-end encryption.**  
 *Your master password never leaves your device, ensuring complete privacy and security.*
 
-[🚀 Live Demo](https://cryptlock-chi.vercel.app/) • [🔒 Security](#-security-architecture)
+[🚀 Live Demo](https://cryptlock-ashy.vercel.app/) • [🔒 Security](#-security-architecture)
 
 </div>
 
