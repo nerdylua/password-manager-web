@@ -23,7 +23,7 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { signIn, verifyMasterPassword, userProfile, user, masterPasswordVerified, loading: authLoading } = useAuth();
+  const { signIn, verifyMasterPassword, userProfile, user, masterPasswordVerified, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -123,14 +123,34 @@ function LoginContent() {
     router.push('/auth/forgot-password');
   };
 
-  const handleBackToLogin = () => {
-    // Clear step parameter and redirect to clean login
-    const loginUrl = new URL('/auth/login', window.location.origin);
-    loginUrl.searchParams.set('redirectTo', redirectTo);
-    router.replace(loginUrl.toString());
-    setStep('login');
-    setError('');
-    setMasterPassword('');
+  const handleBackToLogin = async () => {
+    try {
+      // Set loading state
+      setLoading(true);
+      setError('');
+      
+      // Fully log out the user (clears both Firebase auth and vault session)
+      await logout();
+      
+      // The logout will trigger onAuthStateChanged which will redirect to login
+      // But we can also show a success message
+      toast.success('Logged out successfully');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if logout fails, clear local state and redirect
+      setError('');
+      setMasterPassword('');
+      setStep('login');
+      
+      // Clear step parameter and redirect to clean login
+      const loginUrl = new URL('/auth/login', window.location.origin);
+      loginUrl.searchParams.set('redirectTo', redirectTo);
+      router.replace(loginUrl.toString());
+      
+      toast.error('Logout failed, but session cleared');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Show loading state while auth is initializing
@@ -230,7 +250,14 @@ function LoginContent() {
                   className="text-muted-foreground"
                   disabled={loading}
                 >
-                  ← Sign in with different account
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-muted-foreground mr-2"></div>
+                      Logging out...
+                    </>
+                  ) : (
+                    '← Sign in with different account'
+                  )}
                 </Button>
               </div>
             </CardFooter>
