@@ -162,19 +162,67 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }, 30000);
   };
 
+  // Helper function to clear all session data (for logout or cleanup)
+  const clearAllSessionData = useCallback(() => {
+    // Clear master password from memory
+    setEncryptedMasterPassword(null);
+    setSessionKey(null);
+    setMasterPasswordVerified(false);
+    
+    // Clear all session storage items
+    sessionStorage.removeItem('mpv');
+    sessionStorage.removeItem('sessionKey');
+    sessionStorage.removeItem('encryptedMasterPassword');
+    sessionStorage.removeItem('vaultAccessAuthorized');
+    sessionStorage.removeItem('highlightSecurityIssues');
+    sessionStorage.removeItem('pageRefreshMarker');
+    sessionStorage.removeItem('sessionId');
+    
+    // Clear localStorage items related to tab close detection
+    const sessionId = sessionStorage.getItem('sessionId');
+    if (sessionId) {
+      localStorage.removeItem(`refresh_${sessionId}`);
+      localStorage.removeItem(`refresh_${sessionId}_timestamp`);
+      localStorage.removeItem(`tab_hidden_${sessionId}`);
+    }
+    localStorage.removeItem('tabClosed');
+    localStorage.removeItem('tabClosedTimestamp');
+    
+    // Clear cookies
+    deleteCookie('auth-token');
+    deleteCookie('master-password-verified');
+  }, []);
+
   // Enhanced session management for better tab close/refresh detection
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Set a flag to track if this is a tab refresh vs new tab
-    const isPageRefresh = sessionStorage.getItem('pageRefreshMarker') === 'true';
-    sessionStorage.setItem('pageRefreshMarker', 'true');
+    // Enhanced tab close detection with localStorage coordination
+    const sessionId = sessionStorage.getItem('sessionId') || crypto.randomUUID();
+    sessionStorage.setItem('sessionId', sessionId);
+    
+    // Track if this is a page refresh by checking if the session was marked as refreshing
+    const isPageRefresh = localStorage.getItem(`refresh_${sessionId}`) === 'true';
+    
+    // Clean up old session refresh markers (older than 5 seconds)
+    const cleanupOldMarkers = () => {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('refresh_') && key !== `refresh_${sessionId}`) {
+          const timestamp = localStorage.getItem(`${key}_timestamp`);
+          if (!timestamp || Date.now() - parseInt(timestamp) > 5000) {
+            localStorage.removeItem(key);
+            localStorage.removeItem(`${key}_timestamp`);
+          }
+        }
+      });
+    };
+    cleanupOldMarkers();
 
-    // Enhanced session state management
+    // Handle tab state management for new tabs (not refreshes)
     const handleTabStateManagement = () => {
-      // If user exists but no master password verification and this isn't a refresh
+      // Only clear stale session data if this is a new tab (not a refresh)
       if (user && !masterPasswordVerified && !isPageRefresh) {
-        // Clear potentially stale session data to force re-authentication
+        console.log('New tab detected, clearing stale session data');
         sessionStorage.removeItem('mpv');
         sessionStorage.removeItem('sessionKey');
         sessionStorage.removeItem('encryptedMasterPassword');
@@ -186,32 +234,90 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     };
 
-    // Only run this logic once on initial load
+    // Only run this logic for new tabs (not refreshes)
     if (!isPageRefresh) {
       handleTabStateManagement();
     }
 
-    // Cleanup function to remove the refresh marker when tab is closed (not refreshed)
+    // Clear the refresh marker after processing
+    localStorage.removeItem(`refresh_${sessionId}`);
+    localStorage.removeItem(`refresh_${sessionId}_timestamp`);
+
+    // Enhanced beforeunload handler to mark page refresh
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // This runs when the tab is actually closing, not refreshing
-      // We'll use a small delay to distinguish between refresh and close
+      // Mark this as a potential refresh
+      localStorage.setItem(`refresh_${sessionId}`, 'true');
+      localStorage.setItem(`refresh_${sessionId}_timestamp`, Date.now().toString());
+      
+      // Set a timer to remove the marker if the page doesn't load again
+      // This will catch actual tab closes
       setTimeout(() => {
-        sessionStorage.removeItem('pageRefreshMarker');
-      }, 100);
+        const stillMarked = localStorage.getItem(`refresh_${sessionId}`);
+        if (stillMarked === 'true') {
+          // Tab was actually closed, not refreshed
+          console.log('Tab close detected, logging out user');
+          localStorage.removeItem(`refresh_${sessionId}`);
+          localStorage.removeItem(`refresh_${sessionId}_timestamp`);
+          
+          // Clear all session data for this session
+          if (user) {
+            // Use a different approach for tab close logout
+            // Set a flag that will be checked on next page load
+            localStorage.setItem('tabClosed', 'true');
+            localStorage.setItem('tabClosedTimestamp', Date.now().toString());
+          }
+        }
+      }, 1000);
     };
 
-    // Handle page visibility changes (tab switching, minimizing, etc.)
+    // Handle page visibility changes for additional tab close detection
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        // Tab is hidden, potentially being closed
+        // Mark potential tab close
+        localStorage.setItem(`tab_hidden_${sessionId}`, Date.now().toString());
+        
+        // If tab stays hidden for too long, consider it closed
         setTimeout(() => {
           if (document.visibilityState === 'hidden') {
-            // Still hidden after delay, likely tab close
-            sessionStorage.removeItem('pageRefreshMarker');
+            const hiddenTime = localStorage.getItem(`tab_hidden_${sessionId}`);
+            if (hiddenTime && Date.now() - parseInt(hiddenTime) > 2000) {
+              // Tab has been hidden for more than 2 seconds, likely closed
+              localStorage.setItem('tabClosed', 'true');
+              localStorage.setItem('tabClosedTimestamp', Date.now().toString());
+            }
           }
-        }, 1000);
+        }, 2000);
+      } else if (document.visibilityState === 'visible') {
+        // Tab became visible again, clear hidden marker
+        localStorage.removeItem(`tab_hidden_${sessionId}`);
       }
     };
+
+    // Check for tab close flag on mount
+    const checkTabCloseFlag = () => {
+      const tabClosed = localStorage.getItem('tabClosed');
+      const tabClosedTimestamp = localStorage.getItem('tabClosedTimestamp');
+      
+      if (tabClosed === 'true' && tabClosedTimestamp) {
+        const timeSinceClose = Date.now() - parseInt(tabClosedTimestamp);
+        
+        // If tab close was recent (within 10 seconds), log out
+        if (timeSinceClose < 10000 && user) {
+          console.log('Previous tab close detected, logging out user');
+          clearAllSessionData();
+          signOut(auth).catch(() => {
+            // Ignore signout errors during cleanup
+          });
+        }
+        
+        // Clear the flags
+        localStorage.removeItem('tabClosed');
+        localStorage.removeItem('tabClosedTimestamp');
+      }
+    };
+
+    // Check for tab close flag immediately
+    checkTabCloseFlag();
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -219,8 +325,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
+      // Clean up this session's markers
+      localStorage.removeItem(`refresh_${sessionId}`);
+      localStorage.removeItem(`refresh_${sessionId}_timestamp`);
+      localStorage.removeItem(`tab_hidden_${sessionId}`);
     };
-  }, [user, masterPasswordVerified]);
+  }, [user, masterPasswordVerified, clearAllSessionData]);
 
   // Load user profile
   const loadUserProfile = useCallback(async (uid: string) => {
@@ -268,13 +379,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const mpvSession = sessionStorage.getItem('mpv');
         const storedSessionKey = sessionStorage.getItem('sessionKey');
         const storedEncryptedPassword = sessionStorage.getItem('encryptedMasterPassword');
-        const pageRefreshMarker = sessionStorage.getItem('pageRefreshMarker');
+        const sessionId = sessionStorage.getItem('sessionId');
         
-        // Only restore session if all conditions are met and it's a page refresh (not new tab)
+        // Only restore session if all conditions are met and it's not a fresh start after tab close
         if (mpvSession === 'verified' && 
             storedSessionKey && 
             storedEncryptedPassword && 
-            pageRefreshMarker === 'true') {
+            sessionId &&
+            !localStorage.getItem('tabClosed')) {
           
           // Run validation asynchronously to avoid blocking
           const validateSession = async () => {
@@ -324,7 +436,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Clear vault access and other session data
         sessionStorage.removeItem('vaultAccessAuthorized');
         sessionStorage.removeItem('highlightSecurityIssues');
-        sessionStorage.removeItem('pageRefreshMarker');
       }
       
       setLoading(false);
@@ -427,26 +538,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error(error.message || 'Failed to create account');
     }
   };
-
-  // Helper function to clear all session data (for logout or cleanup)
-  const clearAllSessionData = useCallback(() => {
-    // Clear master password from memory
-    setEncryptedMasterPassword(null);
-    setSessionKey(null);
-    setMasterPasswordVerified(false);
-    
-    // Clear all session storage items
-    sessionStorage.removeItem('mpv');
-    sessionStorage.removeItem('sessionKey');
-    sessionStorage.removeItem('encryptedMasterPassword');
-    sessionStorage.removeItem('vaultAccessAuthorized');
-    sessionStorage.removeItem('highlightSecurityIssues');
-    sessionStorage.removeItem('pageRefreshMarker');
-    
-    // Clear cookies
-    deleteCookie('auth-token');
-    deleteCookie('master-password-verified');
-  }, []);
 
   const logout = async () => {
     try {
