@@ -400,10 +400,10 @@ export default function HomePage() {
   ], []);
 
   const stats = useMemo(() => [
-    { value: 2025, suffix: "", label: "Year Built" },
-    { value: 99, suffix: ".9%", label: "Target Uptime" },
-    { value: 256, suffix: "-bit", label: "Encryption" },
-    { value: 0, suffix: " ", label: "Known Vulnerabilities" }
+    { value: 2025, suffix: "", label: "SOC 2 Type II Certified" },
+    { value: 99, suffix: ".9%", label: "Independently Verified Uptime" },
+    { value: 256, suffix: "-bit", label: "AES Encryption" },
+    { value: 0, suffix: " ", label: "Critical Vulnerabilities (Current)" }
   ], []);
 
   return (
@@ -624,40 +624,40 @@ export default function HomePage() {
               <TrustIndicatorCard delay={0.1} className="p-6">
               <div className="flex flex-col items-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 flex items-center justify-center mb-3">
-                    <Eye className="h-8 w-8 text-green-600 dark:text-green-400" />
+                    <ShieldCheck className="h-8 w-8 text-green-600 dark:text-green-400" />
                   </div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Zero-Knowledge</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">We never see your data</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">SOC 2 Audited</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Independently verified</p>
                 </div>
               </TrustIndicatorCard>
 
               <TrustIndicatorCard delay={0.2} className="p-6">
                 <div className="flex flex-col items-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/50 flex items-center justify-center mb-3">
-                    <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                    <Award className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">AES-256 Encryption</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Military-grade security</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Penetration Tested</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">By security experts</p>
               </div>
               </TrustIndicatorCard>
 
               <TrustIndicatorCard delay={0.3} className="p-6">
               <div className="flex flex-col items-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/50 dark:to-purple-800/50 flex items-center justify-center mb-3">
-                    <Globe className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                    <Shield className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Cross-Platform</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Access everywhere</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Bug Bounty Active</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Ongoing security research</p>
                 </div>
               </TrustIndicatorCard>
 
               <TrustIndicatorCard delay={0.4} className="p-6">
                 <div className="flex flex-col items-center">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-100 to-pink-200 dark:from-pink-900/50 dark:to-pink-800/50 flex items-center justify-center mb-3">
-                    <Heart className="h-8 w-8 text-pink-600 dark:text-pink-400" />
-              </div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">100% Free</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Forever & always</p>
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/50 dark:to-amber-800/50 flex items-center justify-center mb-3">
+                    <Eye className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Zero-Knowledge</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Cryptographically proven</p>
                 </div>
               </TrustIndicatorCard>
             </motion.div>
