@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, memo, startTransition } from 'react';
 import { useAuth } from '@/hooks/AuthContext';
 import { useRouter } from 'next/navigation';
 import { VaultItem } from '@/lib/encryption';
 import { VaultService } from '@/lib/vault-service';
 import { PasswordStrengthAnalyzer } from '@/lib/password-strength';
+import { getCryptoWorker } from '@/lib/crypto-worker';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -97,26 +98,25 @@ class DashboardCache {
       return null;
     }
     
-    // Check if vault has changed
-    try {
-      const { VaultService } = await import('@/lib/vault-service');
-      const vaultInfo = await VaultService.getVaultModificationInfo(userId);
-      const currentHash = this.changeHashes.get(userId);
-      
-      if (currentHash && currentHash !== vaultInfo.changeHash) {
-        // Vault has changed, invalidate cache
-        this.cache.delete(userId);
-        this.changeHashes.delete(userId);
-        return null;
-      }
-      
-      // Update hash if needed
-      if (!currentHash) {
-        this.changeHashes.set(userId, vaultInfo.changeHash);
-      }
-    } catch (error) {
-      console.warn('Failed to check vault changes:', error);
-      // If we can't check changes, return cached data
+    // Check if vault has changed - use background task to avoid blocking
+    if (window.scheduler && 'postTask' in window.scheduler) {
+      window.scheduler.postTask(async () => {
+        try {
+          const { VaultService } = await import('@/lib/vault-service');
+          const vaultInfo = await VaultService.getVaultModificationInfo(userId);
+          const currentHash = this.changeHashes.get(userId);
+          
+          if (currentHash && currentHash !== vaultInfo.changeHash) {
+            // Vault has changed, invalidate cache in background
+            this.cache.delete(userId);
+            this.changeHashes.delete(userId);
+          } else if (!currentHash) {
+            this.changeHashes.set(userId, vaultInfo.changeHash);
+          }
+        } catch (error) {
+          console.warn('Background vault check failed:', error);
+        }
+      }, { priority: 'background' });
     }
     
     return cached;
@@ -126,14 +126,18 @@ class DashboardCache {
     const dataWithTimestamp = { ...data, lastFetch: Date.now() };
     this.cache.set(userId, dataWithTimestamp);
     
-    // Store current change hash
-    try {
-      const { VaultService } = await import('@/lib/vault-service');
-      const vaultInfo = await VaultService.getVaultModificationInfo(userId);
-      this.changeHashes.set(userId, vaultInfo.changeHash);
-      dataWithTimestamp.changeHash = vaultInfo.changeHash;
-    } catch (error) {
-      console.warn('Failed to store change hash:', error);
+    // Store current change hash in background
+    if (window.scheduler && 'postTask' in window.scheduler) {
+      window.scheduler.postTask(async () => {
+        try {
+          const { VaultService } = await import('@/lib/vault-service');
+          const vaultInfo = await VaultService.getVaultModificationInfo(userId);
+          this.changeHashes.set(userId, vaultInfo.changeHash);
+          dataWithTimestamp.changeHash = vaultInfo.changeHash;
+        } catch (error) {
+          console.warn('Failed to store change hash:', error);
+        }
+      }, { priority: 'background' });
     }
     
     this.startCleanupTimer();
@@ -151,6 +155,216 @@ class DashboardCache {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
+  }
+}
+
+// Web worker for heavy calculations to prevent blocking main thread
+class DashboardWorker {
+  private static instance: DashboardWorker;
+  private worker: Worker | null = null;
+  private taskId = 0;
+  private pendingTasks = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+
+  static getInstance(): DashboardWorker {
+    if (!DashboardWorker.instance) {
+      DashboardWorker.instance = new DashboardWorker();
+    }
+    return DashboardWorker.instance;
+  }
+
+  constructor() {
+    this.initWorker();
+  }
+
+  private initWorker() {
+    const workerCode = `
+      self.onmessage = function(e) {
+        const { id, type, data } = e.data;
+        
+        try {
+          let result;
+          
+          switch (type) {
+            case 'calculateStats':
+              const items = data.items || [];
+              const weakPasswords = items.filter(item => 
+                item.password && item.password.length < 8
+              ).length;
+              
+              const passwords = items
+                .filter(item => item.password)
+                .map(item => item.password);
+              const unique = new Set(passwords);
+              const duplicatePasswords = passwords.length - unique.size;
+              
+              const securityScore = Math.max(0, 100 - (weakPasswords * 10) - (duplicatePasswords * 15));
+
+              result = {
+                totalItems: items.length,
+                weakPasswords,
+                duplicatePasswords,
+                securityScore
+              };
+              break;
+              
+            case 'calculateRecentItems':
+              const vaultItems = data.items || [];
+              result = vaultItems
+                .slice()
+                .sort((a, b) => b.lastModified - a.lastModified)
+                .slice(0, 5);
+              break;
+              
+            case 'securityAudit':
+              const auditItems = data.items || [];
+              const weak = auditItems.filter(item => 
+                item.password && item.password.length < 8
+              );
+              
+              const auditPasswords = auditItems
+                .filter(item => item.password)
+                .map(item => item.password);
+              const duplicates = [];
+              const seen = new Set();
+              
+              for (const password of auditPasswords) {
+                if (seen.has(password) && !duplicates.includes(password)) {
+                  duplicates.push(password);
+                }
+                seen.add(password);
+              }
+
+              const old = auditItems.filter(item => {
+                if (!item.lastModified) return false;
+                const daysSinceModified = (Date.now() - item.lastModified) / (1000 * 60 * 60 * 24);
+                return daysSinceModified > 90;
+              });
+
+              const missing = auditItems.filter(item => 
+                item.category === 'login' && !item.password
+              );
+
+              result = {
+                weak: weak.length,
+                duplicate: duplicates.length,
+                old: old.length,
+                missing: missing.length,
+                total: auditItems.length
+              };
+              break;
+              
+            default:
+              throw new Error('Unknown task type: ' + type);
+          }
+          
+          self.postMessage({ id, result });
+        } catch (error) {
+          self.postMessage({ id, error: error.message });
+        }
+      };
+    `;
+
+    try {
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      const workerUrl = URL.createObjectURL(blob);
+      this.worker = new Worker(workerUrl);
+      
+      this.worker.onmessage = (e) => {
+        const { id, result, error } = e.data;
+        const task = this.pendingTasks.get(id);
+        
+        if (task) {
+          this.pendingTasks.delete(id);
+          if (error) {
+            task.reject(new Error(error));
+          } else {
+            task.resolve(result);
+          }
+        }
+      };
+      
+      URL.revokeObjectURL(workerUrl);
+    } catch (error) {
+      console.warn('Failed to create dashboard worker:', error);
+    }
+  }
+
+  async executeTask(type: string, data: unknown): Promise<unknown> {
+    if (!this.worker) {
+      // Fallback to main thread with deferred execution
+      return new Promise((resolve) => {
+        if (window.scheduler && 'postTask' in window.scheduler) {
+          window.scheduler.postTask(() => {
+            resolve(this.executeOnMainThread(type, data));
+          }, { priority: 'background' });
+        } else {
+          setTimeout(() => {
+            resolve(this.executeOnMainThread(type, data));
+          }, 0);
+        }
+      });
+    }
+
+    const id = ++this.taskId;
+    
+    return new Promise((resolve, reject) => {
+      this.pendingTasks.set(id, { resolve, reject });
+      
+      setTimeout(() => {
+        if (this.pendingTasks.has(id)) {
+          this.pendingTasks.delete(id);
+          reject(new Error('Task timeout'));
+        }
+      }, 5000);
+      
+      this.worker!.postMessage({ id, type, data });
+    });
+  }
+
+  private executeOnMainThread(type: string, data: unknown): unknown {
+    // Fallback implementation for main thread
+    switch (type) {
+      case 'calculateStats':
+        const statsData = data as { items: VaultItem[] };
+        const items = statsData.items || [];
+        const weakPasswords = items.filter((item: VaultItem) => 
+          item.password && item.password.length < 8
+        ).length;
+        
+        const passwords = items
+          .filter((item: VaultItem) => item.password)
+          .map((item: VaultItem) => item.password);
+        const unique = new Set(passwords);
+        const duplicatePasswords = passwords.length - unique.size;
+        
+        const securityScore = Math.max(0, 100 - (weakPasswords * 10) - (duplicatePasswords * 15));
+
+        return {
+          totalItems: items.length,
+          weakPasswords,
+          duplicatePasswords,
+          securityScore
+        };
+      
+      case 'calculateRecentItems':
+        const recentData = data as { items: VaultItem[] };
+        const vaultItems = recentData.items || [];
+        return vaultItems
+          .slice()
+          .sort((a: VaultItem, b: VaultItem) => b.lastModified - a.lastModified)
+          .slice(0, 5);
+          
+      default:
+        throw new Error('Unknown task type: ' + type);
+    }
+  }
+
+  destroy() {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    this.pendingTasks.clear();
   }
 }
 
@@ -219,10 +433,10 @@ const RecentItem = memo(({ item, onClick }: { item: VaultItem; onClick: () => vo
 RecentItem.displayName = 'RecentItem';
 
 function DashboardContent() {
-  const { user, userProfile, logout, lockVault, getMasterPassword } = useAuth();
+  const { user, userProfile, logout, lockVault, getMasterPassword, masterPasswordVerified } = useAuth();
   const router = useRouter();
 
-  // Optimized state management - split into smaller chunks
+  // Optimized state management - reduced complexity
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     vaultItems: [],
     recentItems: [],
@@ -263,41 +477,60 @@ function DashboardContent() {
 
   // Cache refs
   const dashboardCache = useRef(DashboardCache.getInstance());
+  const dashboardWorker = useRef(DashboardWorker.getInstance());
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Memoized stats calculation - only recalculate when items change
+  // Optimized stats calculation using web worker - prevent blocking main thread
   const stats = useMemo(() => {
-    const items = dashboardData.vaultItems;
-    if (items.length === 0) {
-      return { totalItems: 0, weakPasswords: 0, duplicatePasswords: 0, securityScore: 100 };
+    // Return cached stats immediately, calculate in background
+    return dashboardData.stats;
+  }, [dashboardData.stats]);
+
+  // Background stats calculation
+  useEffect(() => {
+    if (dashboardData.vaultItems.length > 0) {
+      // Use startTransition to prevent blocking interactions
+      startTransition(async () => {
+        try {
+          const newStats = await dashboardWorker.current.executeTask('calculateStats', {
+            items: dashboardData.vaultItems
+          });
+          
+          setDashboardData(prev => ({
+            ...prev,
+            stats: newStats as { totalItems: number; weakPasswords: number; duplicatePasswords: number; securityScore: number }
+          }));
+        } catch (error) {
+          console.warn('Background stats calculation failed:', error);
+        }
+      });
     }
-
-    const weakPasswords = items.filter(item => 
-      item.password && item.password.length < 8
-    ).length;
-    
-    const passwords = items
-      .filter(item => item.password)
-      .map(item => item.password);
-    const unique = new Set(passwords);
-    const duplicatePasswords = passwords.length - unique.size;
-    
-    const securityScore = Math.max(0, 100 - (weakPasswords * 10) - (duplicatePasswords * 15));
-
-    return {
-      totalItems: items.length,
-      weakPasswords,
-      duplicatePasswords,
-      securityScore
-    };
   }, [dashboardData.vaultItems]);
 
-  // Memoized recent items - only recalculate when vault items change
+  // Memoized recent items calculation using web worker
   const recentItems = useMemo(() => {
-    return dashboardData.vaultItems
-      .slice() // Create copy to avoid mutating original
-      .sort((a, b) => b.lastModified - a.lastModified)
-      .slice(0, 5);
+    // Return cached recent items immediately
+    return dashboardData.recentItems;
+  }, [dashboardData.recentItems]);
+
+  // Background recent items calculation
+  useEffect(() => {
+    if (dashboardData.vaultItems.length > 0) {
+      startTransition(async () => {
+        try {
+          const newRecentItems = await dashboardWorker.current.executeTask('calculateRecentItems', {
+            items: dashboardData.vaultItems
+          });
+          
+          setDashboardData(prev => ({
+            ...prev,
+            recentItems: newRecentItems as VaultItem[]
+          }));
+        } catch (error) {
+          console.warn('Background recent items calculation failed:', error);
+        }
+      });
+    }
   }, [dashboardData.vaultItems]);
 
   // Helper function to show detailed error modal
@@ -306,131 +539,165 @@ function DashboardContent() {
     setShowErrorModal(true);
   }, []);
 
-  // Optimized dashboard data loader with reduced data fetching
-  const loadDashboardData = useCallback(async (forceRefresh = false) => {
-    if (!user) return;
-    
-    // Cancel any pending requests
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
+  // Optimized dashboard data loader with reduced data fetching and non-blocking operations
+  const handleDashboardRefresh = useCallback(async (forceRefresh = false) => {
+    if (!user || !masterPasswordVerified) return;
+
+    // Use startTransition for non-urgent updates
+    startTransition(() => {
+      setLoadingItems(true);
+    });
 
     try {
-      setLoadingItems(true);
-      setLoadingProgress({ current: 0, total: 3, stage: 'Connecting to vault...' });
-      
-      const masterPassword = getMasterPassword();
+      // Get master password asynchronously - move to background
+      const masterPassword = await getMasterPassword();
       if (!masterPassword) {
-        setDashboardData({
-          vaultItems: [],
-          recentItems: [],
-          stats: { totalItems: 0, weakPasswords: 0, duplicatePasswords: 0, securityScore: 100 },
-          lastFetch: Date.now()
-        });
+        toast.error('Unable to access master password. Please re-authenticate.');
         return;
       }
 
-      setLoadingProgress({ current: 1, total: 3, stage: 'Checking cache...' });
-
-      // Check cache first for instant loading
-      if (!forceRefresh) {
-        const cached = await dashboardCache.current.get(user.uid);
-        if (cached) {
-          setDashboardData(cached);
-          setLoadingItems(false);
-          return;
-        }
-      }
-
-      setLoadingProgress({ current: 2, total: 3, stage: 'Decrypting vault data...' });
-      const startTime = performance.now();
-      
-      // Optimized data loading - fetch only essential data for dashboard
-      const items = await VaultService.getAllItems(user.uid, masterPassword, { 
+      // Load data in background with progressive enhancement
+      const items = await VaultService.getAllItems(user.uid, masterPassword, {
         useCache: !forceRefresh,
-        limit: 30 // Reduced from 50 for faster initial loading
+        limit: 20 // Reduced from 30 for faster initial loading
       });
-      
-      setLoadingProgress({ current: 3, total: 3, stage: 'Processing statistics...' });
-      const loadTime = performance.now() - startTime;
-      console.log(`Dashboard data loaded in ${loadTime.toFixed(2)}ms`);
 
-      const newDashboardData: DashboardData = {
-        vaultItems: items,
-        recentItems: [], // Will be calculated by useMemo
-        stats: { totalItems: 0, weakPasswords: 0, duplicatePasswords: 0, securityScore: 100 }, // Will be calculated by useMemo
-        lastFetch: Date.now()
-      };
+      // Update data using startTransition to prevent blocking
+      startTransition(() => {
+        const newDashboardData: DashboardData = {
+          vaultItems: items,
+          recentItems: [], // Will be calculated by background worker
+          stats: { totalItems: items.length, weakPasswords: 0, duplicatePasswords: 0, securityScore: 100 }, // Basic stats, worker will calculate detailed
+          lastFetch: Date.now()
+        };
 
-      // Update cache and state
-      await dashboardCache.current.set(user.uid, newDashboardData);
-      setDashboardData(newDashboardData);
+        setDashboardData(newDashboardData);
+        
+        if (forceRefresh) {
+          toast.success('Dashboard refreshed successfully');
+        }
+      });
+    } catch (error) {
+      console.error('Dashboard refresh error:', error);
+      toast.error('Failed to refresh dashboard');
+    } finally {
+      startTransition(() => {
+        setLoadingItems(false);
+      });
+    }
+  }, [user, masterPasswordVerified, getMasterPassword]);
 
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
+  const handleDeleteItem = useCallback(async (itemId: string) => {
+    if (!user) return;
+
+    try {
+      // Get master password asynchronously in background
+      const masterPassword = await getMasterPassword();
+      if (!masterPassword) {
+        toast.error('Unable to access master password. Please re-authenticate.');
         return;
       }
 
-      console.error('Failed to load dashboard data:', error);
-      showDetailedError(
-        'Dashboard Data Error',
-        'Unable to load vault statistics for the dashboard. This could be due to network issues or authentication problems.',
-        error
-      );
+      await VaultService.deleteItem(user.uid, itemId);
+      toast.success('Item deleted successfully');
       
-      setDashboardData({
-        vaultItems: [],
-        recentItems: [],
-        stats: { totalItems: 0, weakPasswords: 0, duplicatePasswords: 0, securityScore: 100 },
-        lastFetch: Date.now()
+      // Refresh dashboard data in background
+      startTransition(() => {
+        handleDashboardRefresh(true);
       });
-    } finally {
-      setLoadingItems(false);
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete item');
     }
-  }, [user, getMasterPassword, showDetailedError]);
+  }, [user, getMasterPassword, handleDashboardRefresh]);
 
-  // Optimized refresh with debouncing
+  const handleDuplicatePassword = useCallback(async (itemId: string) => {
+    if (!user) return;
+
+    try {
+      // Get master password asynchronously in background
+      const masterPassword = await getMasterPassword();
+      if (!masterPassword) {
+        toast.error('Unable to access master password. Please re-authenticate.');
+        return;
+      }
+      
+      const item = await VaultService.getItem(user.uid, itemId, masterPassword);
+      if (item && item.password) {
+        await navigator.clipboard.writeText(item.password);
+        toast.success('Password copied to clipboard');
+      }
+    } catch (error) {
+      console.error('Copy password error:', error);
+      toast.error('Failed to copy password');
+    }
+  }, [user, getMasterPassword]);
+
+  // Optimized refresh with debouncing and non-blocking updates
   const handleRefresh = useCallback(async () => {
     if (buttonStates.refresh) return; // Prevent double clicks
     
+    // Immediate visual feedback
     setButtonStates(prev => ({ ...prev, refresh: true }));
     toast.loading('Refreshing dashboard...', { id: 'dashboard-refresh' });
     
     try {
       if (user) {
-        await dashboardCache.current.invalidate(user.uid);
+        // Background cache invalidation
+        startTransition(() => {
+          dashboardCache.current.invalidate(user.uid);
+        });
       }
-      await loadDashboardData(true);
+      await handleDashboardRefresh(true);
       toast.success('Dashboard refreshed!', { id: 'dashboard-refresh' });
     } catch (error) {
       toast.error('Failed to refresh dashboard', { id: 'dashboard-refresh' });
     } finally {
+      // Deferred button state reset
       setTimeout(() => {
         setButtonStates(prev => ({ ...prev, refresh: false }));
       }, 200);
     }
-  }, [loadDashboardData, user, buttonStates.refresh]);
+  }, [handleDashboardRefresh, user, buttonStates.refresh]);
 
-  // Memoized password generation
+  // Optimized password generation with web worker
   const handleGeneratePassword = useCallback(() => {
     if (buttonStates.generatePassword) return;
     
+    // Immediate visual feedback
     setButtonStates(prev => ({ ...prev, generatePassword: true }));
     
-    try {
-      const password = PasswordStrengthAnalyzer.generateSecurePassword(
-        generatorSettings.length,
-        generatorSettings
-      );
-      setGeneratedPassword(password);
-      toast.success('Password generated successfully!');
-    } catch (error) {
-      toast.error('Failed to generate password');
-    } finally {
+    // Defer password generation to prevent blocking
+    if (window.scheduler && 'postTask' in window.scheduler) {
+      window.scheduler.postTask(() => {
+        try {
+          const password = PasswordStrengthAnalyzer.generateSecurePassword(
+            generatorSettings.length,
+            generatorSettings
+          );
+          setGeneratedPassword(password);
+          toast.success('Password generated successfully!');
+        } catch (error) {
+          toast.error('Failed to generate password');
+        } finally {
+          setButtonStates(prev => ({ ...prev, generatePassword: false }));
+        }
+      }, { priority: 'user-blocking' });
+    } else {
       setTimeout(() => {
-        setButtonStates(prev => ({ ...prev, generatePassword: false }));
-      }, 200);
+        try {
+          const password = PasswordStrengthAnalyzer.generateSecurePassword(
+            generatorSettings.length,
+            generatorSettings
+          );
+          setGeneratedPassword(password);
+          toast.success('Password generated successfully!');
+        } catch (error) {
+          toast.error('Failed to generate password');
+        } finally {
+          setButtonStates(prev => ({ ...prev, generatePassword: false }));
+        }
+      }, 0);
     }
   }, [generatorSettings, buttonStates.generatePassword]);
 
@@ -444,10 +711,11 @@ function DashboardContent() {
     }
   }, []);
 
-  // Optimized export with data reuse
+  // Optimized export with data reuse and background processing
   const handleExportVault = useCallback(async () => {
     if (!user || buttonStates.exportVault) return;
 
+    // Immediate visual feedback
     setButtonStates(prev => ({ ...prev, exportVault: true }));
     toast.loading('Preparing vault export...', { id: 'export-vault' });
 
@@ -456,43 +724,53 @@ function DashboardContent() {
       let items = dashboardData.vaultItems;
       
       if (items.length === 0 || (Date.now() - dashboardData.lastFetch) > 60000) {
-        const masterPassword = getMasterPassword();
+        const masterPassword = await getMasterPassword();
         if (!masterPassword) {
           toast.error('Master password required for export', { id: 'export-vault' });
-      return;
+          return;
         }
         items = await VaultService.getAllItems(user.uid, masterPassword);
       }
       
-      const exportData = {
-        metadata: {
-          exportDate: new Date().toISOString(),
-          version: '1.0',
-          itemCount: items.length,
-          source: 'CryptLock Dashboard'
-        },
-        security: {
-          notice: 'This file contains encrypted data. Keep it secure.',
-          encryption: 'AES-256-CBC with PBKDF2'
-        },
-        data: {
-          vault: items
-        }
+      // Process export data in background
+      const processExport = () => {
+        const exportData = {
+          metadata: {
+            exportDate: new Date().toISOString(),
+            version: '1.0',
+            itemCount: items.length,
+            source: 'CryptLock Dashboard'
+          },
+          security: {
+            notice: 'This file contains encrypted data. Keep it secure.',
+            encryption: 'AES-256-CBC with PBKDF2'
+          },
+          data: {
+            vault: items
+          }
+        };
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+          type: 'application/json' 
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cryptlock-vault-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast.success(`Exported ${items.length} items successfully`, { id: 'export-vault' });
       };
 
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
-        type: 'application/json' 
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `cryptlock-vault-backup-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast.success(`Exported ${items.length} items successfully`, { id: 'export-vault' });
+      // Use background processing
+      if (window.scheduler && 'postTask' in window.scheduler) {
+        window.scheduler.postTask(processExport, { priority: 'background' });
+      } else {
+        setTimeout(processExport, 0);
+      }
     } catch (error) {
       console.error('Export failed:', error);
       toast.error('Failed to export vault data', { id: 'export-vault' });
@@ -501,10 +779,11 @@ function DashboardContent() {
     }
   }, [user, getMasterPassword, dashboardData, buttonStates.exportVault]);
 
-  // Optimized security audit with data reuse
+  // Optimized security audit with web worker
   const handleSecurityAudit = useCallback(async () => {
     if (!user || buttonStates.securityAudit) return;
 
+    // Immediate visual feedback
     setButtonStates(prev => ({ ...prev, securityAudit: true }));
     toast.loading('Analyzing vault security...', { id: 'security-audit' });
 
@@ -513,7 +792,7 @@ function DashboardContent() {
       let items = dashboardData.vaultItems;
       
       if (items.length === 0 || (Date.now() - dashboardData.lastFetch) > 60000) {
-        const masterPassword = getMasterPassword();
+        const masterPassword = await getMasterPassword();
         if (!masterPassword) {
           toast.error('Master password required for audit', { id: 'security-audit' });
           return;
@@ -521,43 +800,10 @@ function DashboardContent() {
         items = await VaultService.getAllItems(user.uid, masterPassword);
       }
       
-      const weakPasswords = items.filter(item => 
-        item.password && item.password.length < 8
-      );
-      
-      const duplicatePasswords = (() => {
-        const passwords = items
-          .filter(item => item.password)
-          .map(item => item.password);
-        const duplicates: string[] = [];
-        const seen = new Set();
-        
-        for (const password of passwords) {
-          if (seen.has(password) && !duplicates.includes(password!)) {
-            duplicates.push(password!);
-          }
-          seen.add(password);
-        }
-        return duplicates;
-      })();
-
-      const oldPasswords = items.filter(item => {
-        if (!item.lastModified) return false;
-        const daysSinceModified = (Date.now() - item.lastModified) / (1000 * 60 * 60 * 24);
-        return daysSinceModified > 90;
-      });
-
-      const missingPasswords = items.filter(item => 
-        item.category === 'login' && !item.password
-      );
-
-      const securityReport = {
-        weak: weakPasswords.length,
-        duplicate: duplicatePasswords.length,
-        old: oldPasswords.length,
-        missing: missingPasswords.length,
-        total: items.length
-      };
+      // Use web worker for heavy computation
+      const securityReport = await dashboardWorker.current.executeTask('securityAudit', {
+        items: items
+      }) as { weak: number; duplicate: number; old: number; missing: number; total: number };
 
       let reportMessage = `Security Audit Complete!\n\n`;
       reportMessage += `📊 Total Items: ${securityReport.total}\n`;
@@ -588,17 +834,25 @@ function DashboardContent() {
   // Cleanup on unmount
   useEffect(() => {
     const currentCache = dashboardCache.current;
+    const currentWorker = dashboardWorker.current;
+    const currentAbortController = abortControllerRef.current;
+    
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      if (currentAbortController) {
+        currentAbortController.abort();
       }
       currentCache.clear();
+      currentWorker.destroy();
     };
   }, []);
 
+  // Load data on mount with non-blocking approach
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    // Use startTransition to prevent blocking initial render
+    startTransition(() => {
+      handleDashboardRefresh();
+    });
+  }, [handleDashboardRefresh]);
 
   // Memoized navigation functions to prevent re-renders
   const handleLogout = useCallback(async () => {
@@ -1382,11 +1636,11 @@ function DashboardContent() {
                       onClick={() => navigateToVault()}
                     />
                   ))}
-              </div>
+                </div>
               )}
             </CardContent>
           </Card>
-      </main>
+        </main>
         
         {/* Error Modal */}
         <ErrorModal
@@ -1407,4 +1661,4 @@ export default function DashboardPage() {
       <DashboardContent />
     </RouteGuard>
   );
-} 
+}

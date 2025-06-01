@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/AuthContext';
 
@@ -17,12 +17,48 @@ export default function RouteGuard({
   requireMasterPassword = false,
   redirectTo = '/auth/login'
 }: RouteGuardProps) {
-  const { user, masterPasswordVerified, loading } = useAuth();
+  const { user, masterPasswordVerified, loading, clearAllSessionData } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [hasValidated, setHasValidated] = useState(false);
 
   useEffect(() => {
     if (loading) return; // Wait for auth state to load
+
+    // Enhanced validation for inconsistent states
+    const validateAndCleanup = () => {
+      // Check for potentially corrupted session state
+      const mpvSession = sessionStorage.getItem('mpv');
+      const hasSessionData = !!(mpvSession || sessionStorage.getItem('sessionKey'));
+      
+      // If we have session storage markers but no authentication state, clean up
+      if (hasSessionData && !user) {
+        console.warn('Cleaning up stale session data - user logged out');
+        clearAllSessionData();
+        return true;
+      }
+      
+      // If user exists but master password verification is inconsistent
+      if (user && hasSessionData && mpvSession === 'verified' && !masterPasswordVerified) {
+        console.warn('Inconsistent master password verification state detected');
+        // Clear stale master password verification
+        sessionStorage.removeItem('mpv');
+        sessionStorage.removeItem('sessionKey');
+        sessionStorage.removeItem('encryptedMasterPassword');
+        return true;
+      }
+      
+      return false;
+    };
+
+    // Run validation and cleanup
+    const wasCleanedUp = validateAndCleanup();
+    
+    // If we just cleaned up, wait for the next cycle
+    if (wasCleanedUp) {
+      setHasValidated(false);
+      return;
+    }
 
     // Check authentication requirements
     if (requireAuth && !user) {
@@ -40,15 +76,20 @@ export default function RouteGuard({
       router.replace(loginUrl.toString());
       return;
     }
-  }, [user, masterPasswordVerified, loading, router, pathname, requireAuth, requireMasterPassword, redirectTo]);
+
+    // All validations passed
+    setHasValidated(true);
+  }, [user, masterPasswordVerified, loading, router, pathname, requireAuth, requireMasterPassword, redirectTo, clearAllSessionData]);
 
   // Show loading state while checking authentication
-  if (loading) {
+  if (loading || !hasValidated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">
+            {loading ? 'Loading...' : 'Validating session...'}
+          </p>
         </div>
       </div>
     );

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useCallback, useMemo, memo, lazy, Suspense, useEffect } from 'react';
+import { useState, useCallback, useMemo, memo, lazy, Suspense, useEffect, startTransition } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,17 +12,16 @@ import { useAuth } from '@/hooks/AuthContext';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { User } from 'firebase/auth';
+
+// Optimize imports - only import icons that are immediately visible
 import { 
   ArrowRight, 
   CheckCircle, 
-  Clock, 
   Eye, 
   Globe, 
   Heart, 
-  Layers, 
   Shield, 
   Sparkles, 
-  AlertTriangle,
   Lock,
   Key,
   Fingerprint,
@@ -37,9 +36,24 @@ import {
   Mail,
   LogOut,
   BarChart3,
-  Share2,
   Info
 } from 'lucide-react';
+
+// Lazy load additional icons only when needed
+const LazyIcons = {
+  Clock: lazy(() => import('lucide-react').then(mod => ({ default: mod.Clock }))),
+  Layers: lazy(() => import('lucide-react').then(mod => ({ default: mod.Layers }))),
+  AlertTriangle: lazy(() => import('lucide-react').then(mod => ({ default: mod.AlertTriangle }))),
+  Share2: lazy(() => import('lucide-react').then(mod => ({ default: mod.Share2 }))),
+};
+
+// Create proper component wrappers for lazy icons
+const LazyAlertTriangle = ({ className }: { className?: string }) => (
+  <Suspense fallback={<Shield className={className} />}>
+    <LazyIcons.AlertTriangle className={className} />
+  </Suspense>
+);
+
 import { cn } from '@/lib/utils';
 
 // Lazy load heavy components that aren't immediately visible
@@ -241,14 +255,30 @@ export default function HomePage() {
   const { user, userProfile, logout, masterPasswordVerified } = useAuth();
   const router = useRouter();
 
-  // Handle scroll for dynamic header
+  // Handle scroll for dynamic header with throttling
   useEffect(() => {
+    let scrollTimeout: NodeJS.Timeout;
+    
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+      // Throttle scroll events to improve performance
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+      
+      scrollTimeout = setTimeout(() => {
+        startTransition(() => {
+          setIsScrolled(window.scrollY > 50);
+        });
+      }, 16); // ~60fps
     };
     
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+    };
   }, []);
 
   // Memoized handlers to prevent re-renders
@@ -262,16 +292,30 @@ export default function HomePage() {
   }, [logout]);
 
   const handleDashboardAccess = useCallback(() => {
-    if (masterPasswordVerified) {
-      router.push('/dashboard');
-    } else {
-      router.push('/auth/login');
-    }
-  }, [masterPasswordVerified, router]);
+    // Use startTransition for non-urgent updates
+    startTransition(() => {
+      if (masterPasswordVerified) {
+        // Clear any stale vault access markers to ensure clean navigation
+        sessionStorage.removeItem('vaultAccessAuthorized');
+        router.push('/dashboard');
+      } else if (user) {
+        // User is authenticated but needs master password verification
+        const loginUrl = new URL('/auth/login', window.location.origin);
+        loginUrl.searchParams.set('redirectTo', '/dashboard');
+        loginUrl.searchParams.set('step', 'master-password');
+        router.push(loginUrl.toString());
+      } else {
+        // User is not authenticated at all
+        router.push('/auth/login');
+      }
+    });
+  }, [user, masterPasswordVerified, router]);
 
   const handleVaultAccess = useCallback(() => {
-    sessionStorage.setItem('vaultAccessAuthorized', 'true');
-    router.push('/vault');
+    startTransition(() => {
+      sessionStorage.setItem('vaultAccessAuthorized', 'true');
+      router.push('/vault');
+    });
   }, [router]);
 
   // Memoized data arrays to prevent recreation on each render
@@ -312,7 +356,7 @@ export default function HomePage() {
       color: "from-indigo-500 to-blue-500"
     },
     {
-      icon: Share2,
+      icon: Shield,
       title: "Secure Sharing",
       description: "Share passwords and notes securely with family and team members",
       features: ["Encrypted sharing", "Access controls", "Audit trails"],
@@ -336,14 +380,14 @@ export default function HomePage() {
       statLabel: "Encryption"
     },
     {
-      icon: Clock,
+      icon: ShieldCheck,
       title: "End-to-End Protection",
       description: "Data is encrypted on your device before transmission and remains encrypted in our databases.",
       stat: "24/7",
       statLabel: "Protection"
     },
     {
-      icon: Layers,
+      icon: Shield,
       title: "Multi-Layer Security",
       description: "Multiple security layers including device authentication, secure protocols, and encrypted storage.",
       stat: "5+",
@@ -858,7 +902,7 @@ export default function HomePage() {
                       </div>
                       <div className="text-center">
                         <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center mx-auto mb-3">
-                          <AlertTriangle className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                          <LazyAlertTriangle className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                         </div>
                         <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Breach Protection</h4>
                         <p className="text-sm text-gray-600 dark:text-gray-400">

@@ -16,6 +16,7 @@ import {
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { ZeroKnowledgeEncryption, EncryptedData } from '@/lib/encryption';
+import { getCryptoWorker } from '@/lib/crypto-worker';
 import { v4 as uuidv4 } from 'uuid';
 import CryptoJS from 'crypto-js';
 
@@ -42,7 +43,7 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   masterPasswordVerified: boolean;
-  getMasterPassword: () => string | null;
+  getMasterPassword: () => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string, masterPassword: string, hint?: string | null) => Promise<void>;
   logout: () => Promise<void>;
@@ -61,6 +62,7 @@ interface AuthContextType {
     context: string;
     timestamp: number;
   } | null;
+  clearAllSessionData: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -108,31 +110,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
       .join('');
   };
 
-  // Encrypt master password for memory storage
-  const encryptForSession = (password: string, key: string): string => {
-    // Use a lighter encryption for session storage to improve performance
-    const encrypted = CryptoJS.AES.encrypt(password, key).toString();
-    return encrypted;
+  // Encrypt master password for memory storage using crypto worker
+  const encryptForSession = async (password: string, key: string): Promise<string> => {
+    try {
+      const cryptoWorker = getCryptoWorker();
+      return await cryptoWorker.encryptForSession(password, key);
+    } catch (error) {
+      // Fallback to synchronous encryption if worker fails
+      console.warn('Crypto worker failed, using synchronous encryption:', error);
+      return CryptoJS.AES.encrypt(password, key).toString();
+    }
   };
 
-  // Decrypt master password from memory storage
-  const decryptFromSession = (encryptedData: string, key: string): string => {
-    // Use lighter decryption for session storage
-    const decrypted = CryptoJS.AES.decrypt(encryptedData, key);
-    return decrypted.toString(CryptoJS.enc.Utf8);
+  // Decrypt master password from memory storage using crypto worker
+  const decryptFromSession = async (encryptedData: string, key: string): Promise<string> => {
+    try {
+      const cryptoWorker = getCryptoWorker();
+      return await cryptoWorker.decryptFromSession(encryptedData, key);
+    } catch (error) {
+      // Fallback to synchronous decryption if worker fails
+      console.warn('Crypto worker failed, using synchronous decryption:', error);
+      const decrypted = CryptoJS.AES.decrypt(encryptedData, key);
+      return decrypted.toString(CryptoJS.enc.Utf8);
+    }
   };
 
-  // Get master password (decrypted)
-  const getMasterPassword = (): string | null => {
+  // Get master password (decrypted) - now async
+  const getMasterPassword = useCallback(async (): Promise<string | null> => {
     if (!encryptedMasterPassword || !sessionKey) {
       return null;
     }
     try {
-      return decryptFromSession(encryptedMasterPassword, sessionKey);
+      return await decryptFromSession(encryptedMasterPassword, sessionKey);
     } catch {
       return null;
     }
-  };
+  }, [encryptedMasterPassword, sessionKey]);
 
   // Helper function to log and store error details
   const logAndStoreError = (error: unknown, context: string) => {
@@ -148,6 +161,66 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setErrorDetails(null);
     }, 30000);
   };
+
+  // Enhanced session management for better tab close/refresh detection
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Set a flag to track if this is a tab refresh vs new tab
+    const isPageRefresh = sessionStorage.getItem('pageRefreshMarker') === 'true';
+    sessionStorage.setItem('pageRefreshMarker', 'true');
+
+    // Enhanced session state management
+    const handleTabStateManagement = () => {
+      // If user exists but no master password verification and this isn't a refresh
+      if (user && !masterPasswordVerified && !isPageRefresh) {
+        // Clear potentially stale session data to force re-authentication
+        sessionStorage.removeItem('mpv');
+        sessionStorage.removeItem('sessionKey');
+        sessionStorage.removeItem('encryptedMasterPassword');
+        deleteCookie('master-password-verified');
+        
+        // Clear vault access authorization to prevent inconsistent state
+        sessionStorage.removeItem('vaultAccessAuthorized');
+        sessionStorage.removeItem('highlightSecurityIssues');
+      }
+    };
+
+    // Only run this logic once on initial load
+    if (!isPageRefresh) {
+      handleTabStateManagement();
+    }
+
+    // Cleanup function to remove the refresh marker when tab is closed (not refreshed)
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // This runs when the tab is actually closing, not refreshing
+      // We'll use a small delay to distinguish between refresh and close
+      setTimeout(() => {
+        sessionStorage.removeItem('pageRefreshMarker');
+      }, 100);
+    };
+
+    // Handle page visibility changes (tab switching, minimizing, etc.)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Tab is hidden, potentially being closed
+        setTimeout(() => {
+          if (document.visibilityState === 'hidden') {
+            // Still hidden after delay, likely tab close
+            sessionStorage.removeItem('pageRefreshMarker');
+          }
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, masterPasswordVerified]);
 
   // Load user profile
   const loadUserProfile = useCallback(async (uid: string) => {
@@ -191,16 +264,50 @@ export function AuthProvider({ children }: AuthProviderProps) {
           logAndStoreError(error, 'loading user profile');
         }
         
-        // Check if master password was previously verified in this session
+        // Enhanced session restoration with validation
         const mpvSession = sessionStorage.getItem('mpv');
         const storedSessionKey = sessionStorage.getItem('sessionKey');
         const storedEncryptedPassword = sessionStorage.getItem('encryptedMasterPassword');
+        const pageRefreshMarker = sessionStorage.getItem('pageRefreshMarker');
         
-        if (mpvSession === 'verified' && storedSessionKey && storedEncryptedPassword) {
-          setMasterPasswordVerified(true);
-          setSessionKey(storedSessionKey);
-          setEncryptedMasterPassword(storedEncryptedPassword);
-          setCookie('master-password-verified', 'true', 1); // 1 day expiry
+        // Only restore session if all conditions are met and it's a page refresh (not new tab)
+        if (mpvSession === 'verified' && 
+            storedSessionKey && 
+            storedEncryptedPassword && 
+            pageRefreshMarker === 'true') {
+          
+          // Run validation asynchronously to avoid blocking
+          const validateSession = async () => {
+            try {
+              const cryptoWorker = getCryptoWorker();
+              const isValid = await cryptoWorker.validateSessionData(storedEncryptedPassword, storedSessionKey);
+              
+              if (isValid) {
+                setMasterPasswordVerified(true);
+                setSessionKey(storedSessionKey);
+                setEncryptedMasterPassword(storedEncryptedPassword);
+                setCookie('master-password-verified', 'true', 1);
+              } else {
+                throw new Error('Invalid encrypted password');
+              }
+            } catch (error) {
+              // If validation fails, clear potentially corrupted session data
+              console.warn('Session validation failed, clearing corrupted data:', error);
+              sessionStorage.removeItem('mpv');
+              sessionStorage.removeItem('sessionKey');
+              sessionStorage.removeItem('encryptedMasterPassword');
+              deleteCookie('master-password-verified');
+            }
+          };
+
+          // Use scheduler API if available, otherwise requestIdleCallback
+          if (window.scheduler && 'postTask' in window.scheduler) {
+            window.scheduler.postTask(validateSession, { priority: 'background' });
+          } else if ('requestIdleCallback' in window) {
+            requestIdleCallback(() => validateSession(), { timeout: 2000 });
+          } else {
+            setTimeout(validateSession, 0);
+          }
         }
       } else {
         setUserProfile(null);
@@ -214,6 +321,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         sessionStorage.removeItem('mpv');
         sessionStorage.removeItem('sessionKey');
         sessionStorage.removeItem('encryptedMasterPassword');
+        // Clear vault access and other session data
+        sessionStorage.removeItem('vaultAccessAuthorized');
+        sessionStorage.removeItem('highlightSecurityIssues');
+        sessionStorage.removeItem('pageRefreshMarker');
       }
       
       setLoading(false);
@@ -304,7 +415,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Securely store master password in encrypted memory
       const newSessionKey = generateSessionKey();
-      const encryptedPassword = encryptForSession(masterPassword, newSessionKey);
+      const encryptedPassword = await encryptForSession(masterPassword, newSessionKey);
       setSessionKey(newSessionKey);
       setEncryptedMasterPassword(encryptedPassword);
 
@@ -317,18 +428,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Helper function to clear all session data (for logout or cleanup)
+  const clearAllSessionData = useCallback(() => {
+    // Clear master password from memory
+    setEncryptedMasterPassword(null);
+    setSessionKey(null);
+    setMasterPasswordVerified(false);
+    
+    // Clear all session storage items
+    sessionStorage.removeItem('mpv');
+    sessionStorage.removeItem('sessionKey');
+    sessionStorage.removeItem('encryptedMasterPassword');
+    sessionStorage.removeItem('vaultAccessAuthorized');
+    sessionStorage.removeItem('highlightSecurityIssues');
+    sessionStorage.removeItem('pageRefreshMarker');
+    
+    // Clear cookies
+    deleteCookie('auth-token');
+    deleteCookie('master-password-verified');
+  }, []);
+
   const logout = async () => {
     try {
-      // Clear master password from memory
-      setEncryptedMasterPassword(null);
-      setSessionKey(null);
-      // Clear sessionStorage
-      sessionStorage.removeItem('mpv');
-      sessionStorage.removeItem('sessionKey');
-      sessionStorage.removeItem('encryptedMasterPassword');
+      // Clear all session data first
+      clearAllSessionData();
+      
+      // Sign out from Firebase
       await signOut(auth);
-      // Cookies will be cleared in the onAuthStateChanged callback
+      
+      // Additional cleanup will happen in onAuthStateChanged callback
     } catch (error: any) {
+      // Even if Firebase signout fails, clear local data
+      clearAllSessionData();
       throw new Error(error.message || 'Failed to logout');
     }
   };
@@ -357,7 +488,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           
           // Securely store master password in encrypted memory and sessionStorage
           const newSessionKey = generateSessionKey();
-          const encryptedPassword = encryptForSession(masterPassword, newSessionKey);
+          const encryptedPassword = await encryptForSession(masterPassword, newSessionKey);
           setSessionKey(newSessionKey);
           setEncryptedMasterPassword(encryptedPassword);
           
@@ -394,7 +525,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           
           // Securely store master password in encrypted memory and sessionStorage
           const newSessionKey = generateSessionKey();
-          const encryptedPassword = encryptForSession(masterPassword, newSessionKey);
+          const encryptedPassword = await encryptForSession(masterPassword, newSessionKey);
           setSessionKey(newSessionKey);
           setEncryptedMasterPassword(encryptedPassword);
           
@@ -418,7 +549,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         // Securely store master password in encrypted memory and sessionStorage
         const newSessionKey = generateSessionKey();
-        const encryptedPassword = encryptForSession(masterPassword, newSessionKey);
+        const encryptedPassword = await encryptForSession(masterPassword, newSessionKey);
         setSessionKey(newSessionKey);
         setEncryptedMasterPassword(encryptedPassword);
         
@@ -478,7 +609,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const lockVault = () => {
+  const lockVault = useCallback(() => {
     setMasterPasswordVerified(false);
     // Clear master password from memory
     setEncryptedMasterPassword(null);
@@ -486,8 +617,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     sessionStorage.removeItem('mpv');
     sessionStorage.removeItem('sessionKey');
     sessionStorage.removeItem('encryptedMasterPassword');
+    sessionStorage.removeItem('vaultAccessAuthorized');
+    sessionStorage.removeItem('highlightSecurityIssues');
     deleteCookie('master-password-verified');
-  };
+  }, []);
 
   const value: AuthContextType = {
     user,
@@ -504,7 +637,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     updateUserProfile,
     lockVault,
     errorDetails,
-    getErrorDetails: () => errorDetails
+    getErrorDetails: () => errorDetails,
+    clearAllSessionData // Export for emergency cleanup
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

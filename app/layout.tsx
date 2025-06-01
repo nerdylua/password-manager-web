@@ -19,6 +19,28 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
+    // Enhanced session state validation
+    const validateSessionState = () => {
+      // Check if this appears to be a fresh session (new tab/browser restart)
+      const pageRefreshMarker = sessionStorage.getItem('pageRefreshMarker');
+      const vaultAccessAuthorized = sessionStorage.getItem('vaultAccessAuthorized');
+      
+      // If user is authenticated but session markers are missing and trying to access vault
+      if (user && masterPasswordVerified && pathname.startsWith('/vault') && !vaultAccessAuthorized) {
+        // Clear potentially stale master password verification and redirect through dashboard
+        sessionStorage.removeItem('mpv');
+        sessionStorage.removeItem('sessionKey');
+        sessionStorage.removeItem('encryptedMasterPassword');
+        router.push('/dashboard');
+        return true; // Indicate we handled the redirect
+      }
+      
+      return false; // No redirect needed
+    };
+
+    // Run session validation
+    if (validateSessionState()) return;
+
     // Allow authenticated users to access home page - no auto-redirect
     // They can choose to logout or navigate to dashboard manually
 
@@ -30,15 +52,19 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
 
     // If user is authenticated but hasn't entered master password and trying to access protected pages
     if (user && !masterPasswordVerified && (pathname.startsWith('/vault') || pathname.startsWith('/dashboard'))) {
-      router.push('/auth/login');
+      const loginUrl = new URL('/auth/login', window.location.origin);
+      loginUrl.searchParams.set('redirectTo', pathname);
+      loginUrl.searchParams.set('step', 'master-password');
+      router.push(loginUrl.toString());
       return;
     }
 
-    // Restrict vault access - only accessible via dashboard navigation, not direct URL
+    // Enhanced vault access control - ensure proper navigation flow
     if (pathname.startsWith('/vault') && user && masterPasswordVerified) {
-      // Check if user came from dashboard (using referrer or session storage)
+      // Check if user came from dashboard or has proper authorization
       const cameFromDashboard = sessionStorage.getItem('vaultAccessAuthorized');
       if (!cameFromDashboard) {
+        // Redirect through dashboard to establish proper session flow
         router.push('/dashboard');
         return;
       }

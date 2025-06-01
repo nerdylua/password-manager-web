@@ -32,7 +32,10 @@
     "clean": "rm -rf .next out",
     "preview": "npm run build && npm run start",
     "export": "next build && next export",
-    "analyze": "ANALYZE=true npm run build"
+    "analyze": "ANALYZE=true npm run build",
+    "analyze-bundle": "node scripts/analyze-bundle.js",
+    "perf": "npm run build && npm run analyze-bundle",
+    "performance": "echo '🚀 Performance optimization tips:' && echo '1. Run: npm run analyze-bundle' && echo '2. Open DevTools > Performance tab' && echo '3. Record user interactions' && echo '4. Look for INP metrics in the report'"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",

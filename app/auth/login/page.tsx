@@ -23,7 +23,7 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { signIn, verifyMasterPassword, userProfile, user, masterPasswordVerified } = useAuth();
+  const { signIn, verifyMasterPassword, userProfile, user, masterPasswordVerified, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -31,18 +31,41 @@ function LoginContent() {
   const redirectTo = searchParams.get('redirectTo') || '/dashboard';
   const stepParam = searchParams.get('step');
   
-  // If user is already authenticated and trying to access login, redirect them
+  // Enhanced redirect logic with better state management
   useEffect(() => {
+    // Wait for auth state to fully load
+    if (authLoading) return;
+
+    // If user is fully authenticated, redirect immediately
     if (user && masterPasswordVerified) {
       router.replace(redirectTo);
       return;
     }
     
-    // If step parameter indicates they need master password verification
-    if (stepParam === 'master-password' && user) {
+    // Enhanced step detection with user validation
+    if (stepParam === 'master-password' && user && userProfile) {
+      // Only set to master-password step if user is authenticated and profile is loaded
       setStep('master-password');
+      setError(''); // Clear any previous errors
+    } else if (stepParam === 'master-password' && user && !userProfile) {
+      // User exists but profile not loaded yet, wait for it
+      return;
+    } else if (stepParam === 'master-password' && !user) {
+      // Invalid state: master-password step requested but no user
+      // Redirect to normal login and clear step parameter
+      const loginUrl = new URL('/auth/login', window.location.origin);
+      loginUrl.searchParams.set('redirectTo', redirectTo);
+      router.replace(loginUrl.toString());
+      return;
+    } else if (!stepParam && user && !masterPasswordVerified) {
+      // User is authenticated but needs master password - redirect with correct step
+      const loginUrl = new URL('/auth/login', window.location.origin);
+      loginUrl.searchParams.set('redirectTo', redirectTo);
+      loginUrl.searchParams.set('step', 'master-password');
+      router.replace(loginUrl.toString());
+      return;
     }
-  }, [user, masterPasswordVerified, router, redirectTo, stepParam]);
+  }, [user, masterPasswordVerified, userProfile, authLoading, router, redirectTo, stepParam]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +90,7 @@ function LoginContent() {
 
   const handleMasterPasswordVerification = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || !masterPassword.trim()) return;
 
     setLoading(true);
     setError('');
@@ -76,17 +99,21 @@ function LoginContent() {
       const isValid = await verifyMasterPassword(masterPassword);
       if (isValid) {
         toast.success('Welcome back! Vault unlocked successfully.');
+        // Clear any stale session data and ensure clean navigation
+        sessionStorage.removeItem('vaultAccessAuthorized');
         // Use the redirect URL from middleware or default to dashboard
         router.replace(redirectTo);
       } else {
         setError('Incorrect master password. Please try again.');
         toast.error('Incorrect master password.');
+        setMasterPassword(''); // Clear the field for security
       }
     } catch (error) {
       logError(error, 'master password verification');
       const userFriendlyMessage = getFirebaseErrorMessage(error);
       setError(userFriendlyMessage);
       toast.error('Failed to verify master password.');
+      setMasterPassword(''); // Clear the field for security
     } finally {
       setLoading(false);
     }
@@ -96,7 +123,30 @@ function LoginContent() {
     router.push('/auth/forgot-password');
   };
 
-  if (step === 'master-password') {
+  const handleBackToLogin = () => {
+    // Clear step parameter and redirect to clean login
+    const loginUrl = new URL('/auth/login', window.location.origin);
+    loginUrl.searchParams.set('redirectTo', redirectTo);
+    router.replace(loginUrl.toString());
+    setStep('login');
+    setError('');
+    setMasterPassword('');
+  };
+
+  // Show loading state while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Enhanced master password step with better error handling
+  if (step === 'master-password' && user && userProfile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
         <Card className="w-full max-w-md">
@@ -106,10 +156,10 @@ function LoginContent() {
             </div>
             <CardTitle className="text-2xl font-bold">Unlock Your Vault</CardTitle>
             <CardDescription>
-              Enter your master password to access your encrypted vault
+              Welcome back, {userProfile.displayName || user.email?.split('@')[0]}! Enter your master password to access your encrypted vault.
             </CardDescription>
-            {userProfile?.masterPasswordHint && (
-              <div className="mt-2 text-sm text-muted-foreground">
+            {userProfile.masterPasswordHint && (
+              <div className="mt-2 text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800 p-2 rounded-md">
                 <strong>Hint:</strong> {userProfile.masterPasswordHint}
               </div>
             )}
@@ -138,6 +188,7 @@ function LoginContent() {
                     autoFocus
                     autoComplete="current-password"
                     style={{ WebkitAppearance: 'none' }}
+                    disabled={loading}
                   />
                   <Button
                     type="button"
@@ -146,6 +197,7 @@ function LoginContent() {
                     className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
                     onClick={() => setShowMasterPassword(!showMasterPassword)}
                     tabIndex={-1}
+                    disabled={loading}
                   >
                     {showMasterPassword ? (
                       <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -158,8 +210,15 @@ function LoginContent() {
             </CardContent>
 
             <CardFooter className="flex flex-col space-y-4 pt-6">
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Verifying...' : 'Unlock Vault'}
+              <Button type="submit" className="w-full" disabled={loading || !masterPassword.trim()}>
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Verifying...
+                  </>
+                ) : (
+                  'Unlock Vault'
+                )}
               </Button>
 
               <div className="text-center space-y-2">
@@ -167,10 +226,11 @@ function LoginContent() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setStep('login')}
+                  onClick={handleBackToLogin}
                   className="text-muted-foreground"
+                  disabled={loading}
                 >
-                  ← Back to login
+                  ← Sign in with different account
                 </Button>
               </div>
             </CardFooter>
@@ -180,12 +240,25 @@ function LoginContent() {
     );
   }
 
+  // Redirect loading state for when user is authenticated but waiting
   if (user && masterPasswordVerified) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Redirecting...</p>
+          <p className="text-muted-foreground">Redirecting to your vault...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle case where master password step is requested but user/profile not ready
+  if (step === 'master-password' && (!user || !userProfile)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your account...</p>
         </div>
       </div>
     );
@@ -225,6 +298,7 @@ function LoginContent() {
                   className="pl-10"
                   required
                   autoComplete="email"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -243,6 +317,7 @@ function LoginContent() {
                   required
                   autoComplete="current-password"
                   style={{ WebkitAppearance: 'none' }}
+                  disabled={loading}
                 />
                 <Button
                   type="button"
@@ -251,6 +326,7 @@ function LoginContent() {
                   className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
                   tabIndex={-1}
+                  disabled={loading}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -264,7 +340,14 @@ function LoginContent() {
 
           <CardFooter className="flex flex-col space-y-4 pt-6">
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Signing In...' : 'Sign In'}
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Signing In...
+                </>
+              ) : (
+                'Sign In'
+              )}
             </Button>
 
             <div className="text-center space-y-2">
@@ -274,6 +357,7 @@ function LoginContent() {
                 size="sm"
                 onClick={handleForgotPassword}
                 className="text-muted-foreground"
+                disabled={loading}
               >
                 Forgot your password?
               </Button>
