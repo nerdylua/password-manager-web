@@ -1236,19 +1236,21 @@ export default function HomePage() {
                   Be among the first to experience next-generation password security. Start your journey to better digital protection today.
           </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-          <Link href="/auth/register">
-                    <Button size="lg" variant="secondary" className="w-full sm:w-auto text-lg px-8 py-4 bg-white text-blue-600 hover:bg-gray-100 shadow-lg hover:shadow-xl transition-all duration-300">
+                  <Link href="/auth/register" className="w-auto">
+                    <Button size="lg" variant="secondary" className="w-auto text-lg px-8 py-4 bg-white text-blue-600 hover:bg-gray-100 shadow-lg hover:shadow-xl transition-all duration-300">
                       <Rocket className="mr-2 h-5 w-5" />
                       Start Free Today
                       <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-          </Link>
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto text-lg px-8 py-4 bg-white/10 border-white text-white hover:bg-white hover:text-blue-600 transition-all duration-300 backdrop-blur-sm" asChild>
-                    <a href="https://github.com/nerdylua/password-manager-web" target="_blank" rel="noopener noreferrer">
-                      <Github className="mr-2 h-5 w-5" />
-                      View on GitHub
-                    </a>
-                  </Button>
+                  </Link>
+                  <div className="w-auto">
+                    <Button size="lg" variant="outline" className="w-auto text-lg px-8 py-4 bg-white/10 border-white text-white hover:bg-white hover:text-blue-600 transition-all duration-300 backdrop-blur-sm" asChild>
+                      <a href="https://github.com/nerdylua/password-manager-web" target="_blank" rel="noopener noreferrer">
+                        <Github className="mr-2 h-5 w-5" />
+                        View on GitHub
+                      </a>
+                    </Button>
+                  </div>
                 </div>
               </motion.div>
         </div>
