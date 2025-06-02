@@ -39,18 +39,46 @@ self.onmessage = function(e) {
     
     switch (type) {
       case 'encrypt':
-        result = CryptoJS.AES.encrypt(data.text, data.key).toString();
+        // Generate random IV for each encryption
+        const iv = CryptoJS.lib.WordArray.random(128 / 8);
+        const encrypted = CryptoJS.AES.encrypt(data.text, data.key, {
+          iv: iv,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        });
+        // Prepend IV to ciphertext for storage
+        result = iv.toString() + ':' + encrypted.toString();
         break;
         
       case 'decrypt':
-        const decrypted = CryptoJS.AES.decrypt(data.encryptedData, data.key);
+        // Split IV and ciphertext
+        const parts = data.encryptedData.split(':');
+        if (parts.length !== 2) throw new Error('Invalid encrypted data format');
+        const ivHex = parts[0];
+        const ciphertext = parts[1];
+        
+        const decrypted = CryptoJS.AES.decrypt(ciphertext, data.key, {
+          iv: CryptoJS.enc.Hex.parse(ivHex),
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        });
         result = decrypted.toString(CryptoJS.enc.Utf8);
         break;
         
       case 'validate':
         // Validate that encrypted data can be decrypted
         try {
-          const testDecrypt = CryptoJS.AES.decrypt(data.encryptedData, data.key);
+          const testParts = data.encryptedData.split(':');
+          if (testParts.length !== 2) throw new Error('Invalid format');
+          
+          const testIvHex = testParts[0];
+          const testCiphertext = testParts[1];
+          
+          const testDecrypt = CryptoJS.AES.decrypt(testCiphertext, data.key, {
+            iv: CryptoJS.enc.Hex.parse(testIvHex),
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7
+          });
           const decryptedTest = testDecrypt.toString(CryptoJS.enc.Utf8);
           result = !!(decryptedTest && decryptedTest.length > 0);
         } catch (error) {
@@ -157,19 +185,47 @@ class CryptoWorkerManager {
           switch (type) {
             case 'encrypt':
               if (!data.text || !data.key) throw new Error('Missing text or key for encryption');
-              result = CryptoJS.AES.encrypt(data.text, data.key).toString();
+              // Generate random IV for each encryption
+              const iv = CryptoJS.lib.WordArray.random(128 / 8);
+              const encrypted = CryptoJS.AES.encrypt(data.text, data.key, {
+                iv: iv,
+                mode: CryptoJS.mode.CBC,
+                padding: CryptoJS.pad.Pkcs7
+              });
+              // Prepend IV to ciphertext for storage
+              result = iv.toString() + ':' + encrypted.toString();
               break;
               
             case 'decrypt':
               if (!data.encryptedData || !data.key) throw new Error('Missing encryptedData or key for decryption');
-              const decrypted = CryptoJS.AES.decrypt(data.encryptedData, data.key);
+              // Split IV and ciphertext
+              const parts = data.encryptedData.split(':');
+              if (parts.length !== 2) throw new Error('Invalid encrypted data format');
+              const ivHex = parts[0];
+              const ciphertext = parts[1];
+              
+              const decrypted = CryptoJS.AES.decrypt(ciphertext, data.key, {
+                iv: CryptoJS.enc.Hex.parse(ivHex),
+                mode: CryptoJS.mode.CBC,
+                padding: CryptoJS.pad.Pkcs7
+              });
               result = decrypted.toString(CryptoJS.enc.Utf8);
               break;
               
             case 'validate':
               if (!data.encryptedData || !data.key) throw new Error('Missing encryptedData or key for validation');
               try {
-                const testDecrypt = CryptoJS.AES.decrypt(data.encryptedData, data.key);
+                const testParts = data.encryptedData.split(':');
+                if (testParts.length !== 2) throw new Error('Invalid format');
+                
+                const testIvHex = testParts[0];
+                const testCiphertext = testParts[1];
+                
+                const testDecrypt = CryptoJS.AES.decrypt(testCiphertext, data.key, {
+                  iv: CryptoJS.enc.Hex.parse(testIvHex),
+                  mode: CryptoJS.mode.CBC,
+                  padding: CryptoJS.pad.Pkcs7
+                });
                 const decryptedTest = testDecrypt.toString(CryptoJS.enc.Utf8);
                 result = !!(decryptedTest && decryptedTest.length > 0);
               } catch (error) {

@@ -118,7 +118,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       // Fallback to synchronous encryption if worker fails
       console.warn('Crypto worker failed, using synchronous encryption:', error);
-      return CryptoJS.AES.encrypt(password, key).toString();
+      // Generate random IV for each encryption
+      const iv = CryptoJS.lib.WordArray.random(128 / 8);
+      const encrypted = CryptoJS.AES.encrypt(password, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      });
+      // Prepend IV to ciphertext for storage
+      return iv.toString() + ':' + encrypted.toString();
     }
   };
 
@@ -130,7 +138,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       // Fallback to synchronous decryption if worker fails
       console.warn('Crypto worker failed, using synchronous decryption:', error);
-      const decrypted = CryptoJS.AES.decrypt(encryptedData, key);
+      // Split IV and ciphertext
+      const parts = encryptedData.split(':');
+      if (parts.length !== 2) throw new Error('Invalid encrypted data format');
+      const ivHex = parts[0];
+      const ciphertext = parts[1];
+      
+      const decrypted = CryptoJS.AES.decrypt(ciphertext, key, {
+        iv: CryptoJS.enc.Hex.parse(ivHex),
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      });
       return decrypted.toString(CryptoJS.enc.Utf8);
     }
   };
