@@ -22,7 +22,8 @@ async function openDashboard(e) {
     const existingTabs = await chrome.tabs.query({
       url: [
         'http://localhost:3000/*', 
-        'https://cryptlock-ashy.vercel.app/*'
+        'https://cryptlock-ashy.vercel.app/*',
+        'https://cryptlock.me/*'
       ]
     });
     
@@ -34,14 +35,14 @@ async function openDashboard(e) {
       targetUrl = `${existingUrl.origin}/dashboard`;
     } else {
       // Default to main production domain
-      targetUrl = 'https://cryptlock-ashy.vercel.app/dashboard';
+      targetUrl = 'https://cryptlock.me/dashboard';
     }
     
     chrome.tabs.create({ url: targetUrl });
     window.close();
   } catch (error) {
     // Fallback to main domain
-    chrome.tabs.create({ url: 'https://cryptlock-ashy.vercel.app/dashboard' });
+    chrome.tabs.create({ url: 'https://cryptlock.me/dashboard' });
     window.close();
   }
 }
@@ -119,7 +120,8 @@ async function checkCryptLockConnection() {
     const tabs = await chrome.tabs.query({
       url: [
         'http://localhost:3000/*', 
-        'https://cryptlock-ashy.vercel.app/*'
+        'https://cryptlock-ashy.vercel.app/*',
+        'https://cryptlock.me/*'
       ]
     });
     
