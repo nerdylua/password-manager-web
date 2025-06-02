@@ -24,7 +24,7 @@
 - [✨ Browser Extension](#-browser-extension)
 - [🚀 Quick Start](#-quick-start)
 - [🏗️ Tech Stack](#️-tech-stack)
-- [📁 Project Structure](#-project-structure)
+- [📂 Project Structure](#-project-structure)
 - [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
 
@@ -232,35 +232,74 @@ yarn dev
 </tr>
 </table>
 
-## 📁 Project Structure
+## 📂 Project Structure
 
 ```
 password-manager-web/
-├── 📁 app/                     # Next.js App Router pages
+├── 📁 app/                     # Next.js App Router
+│   ├── 📁 api/                # API routes
+│   │   └── download-extension/ # Extension download endpoint
 │   ├── 📁 auth/               # Authentication pages
 │   │   ├── login/             # Login page
 │   │   ├── register/          # Registration page
-│   │   └── forgot-password/   # Password recovery guidance
+│   │   └── forgot-password/   # Password recovery
 │   ├── 📁 dashboard/          # Security dashboard
 │   ├── 📁 vault/              # Main vault interface
 │   ├── layout.tsx             # Root layout with providers
-│   └── page.tsx               # Landing page
+│   ├── page.tsx               # Landing page
+│   ├── globals.css            # Global styles
+│   ├── not-found.tsx          # 404 page
+│   ├── global-error.tsx       # Global error handling
+│   └── favicon.ico            # Site favicon
 ├── 📁 components/             # Reusable UI components
 │   ├── 📁 ui/                # shadcn/ui base components
-│   ├── theme-provider.tsx    # Theme context provider
-│   ├── theme-toggle.tsx      # Theme switcher component
-│   ├── error-modal.tsx       # Comprehensive error handling
-│   └── password-generator.tsx # Password generation UI
-├── 📁 contexts/               # React contexts
-│   └── AuthContext.tsx       # Authentication & user state
+│   ├── AddItemModal.tsx       # Add/edit vault items
+│   ├── DeleteConfirmModal.tsx # Deletion confirmation
+│   ├── ErrorModal.tsx         # Error handling UI
+│   ├── RouteGuard.tsx         # Authentication guard
+│   ├── theme-provider.tsx     # Theme context provider
+│   ├── theme-toggle.tsx       # Theme switcher
+│   ├── master-password-education.tsx # Master password guidance
+│   ├── header-mobile.tsx      # Mobile navigation
+│   ├── animated-counter.tsx   # Animated statistics
+│   ├── floating-card.tsx      # Floating UI elements
+│   └── parallax-section.tsx   # Parallax effects
+├── 📁 extension/              # Browser extension
+│   ├── 📁 icons/             # Extension icons
+│   ├── manifest.json         # Extension manifest
+│   ├── popup.html            # Extension popup UI
+│   ├── popup.js              # Popup functionality
+│   ├── background.js         # Background script
+│   ├── content.js            # Content script
+│   └── styles.css            # Extension styles
+├── 📁 hooks/                  # React hooks & contexts
+│   ├── AuthContext.tsx       # Authentication & user state
+│   └── use-mobile.ts         # Mobile detection hook
 ├── 📁 lib/                    # Core utilities & services
-│   ├── firebase.ts           # Firebase configuration with optimization
+│   ├── firebase.ts           # Firebase configuration
 │   ├── encryption.ts         # Zero-knowledge encryption
 │   ├── vault-service.ts      # Vault CRUD with real-time sync
 │   ├── password-strength.ts  # Security analysis
-│   └── utils.ts              # Utility functions
+│   ├── crypto-worker.ts      # Web worker for encryption
+│   ├── auth-utils.ts         # Authentication utilities
+│   ├── firebase-errors.ts    # Firebase error handling
+│   ├── security-config.ts    # Security configuration
+│   └── utils.ts              # General utilities
 ├── 📁 public/                 # Static assets
-├── 📄 .env.local.example     # Environment template
+├── 📁 scripts/                # Build & utility scripts
+│   └── analyze-bundle.js     # Bundle analysis
+├── 📁 .next/                  # Next.js build output
+├── 📁 node_modules/           # Dependencies
+├── 📄 middleware.ts           # Next.js middleware
+├── 📄 next.config.js          # Next.js configuration (JS)
+├── 📄 next.config.ts          # Next.js configuration (TS)
+├── 📄 package.json            # Project dependencies
+├── 📄 package-lock.json       # Locked dependencies
+├── 📄 tsconfig.json           # TypeScript configuration
+├── 📄 tailwind.config.ts      # Tailwind CSS configuration
+├── 📄 postcss.config.mjs      # PostCSS configuration
+├── 📄 eslint.config.mjs       # ESLint configuration
+├── 📄 components.json         # shadcn/ui configuration
 ├── 📄 .gitignore             # Git ignore rules
 ├── 📄 LICENSE                # MIT License
 └── 📄 README.md              # This file
