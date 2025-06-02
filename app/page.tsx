@@ -532,7 +532,7 @@ export default function HomePage() {
                 </span>
               </h1>
               <p className="text-lg md:text-xl lg:text-2xl text-gray-600 dark:text-gray-400 mb-8 max-w-4xl mx-auto leading-relaxed">
-                The world&apos;s most secure password manager with{' '}
+              Privacy-first password management with{' '}
                 <strong className="text-blue-600 dark:text-blue-400">zero-knowledge architecture</strong>.
                 Your master password never leaves your device — we literally cannot see your data.
               </p>
@@ -624,20 +624,20 @@ export default function HomePage() {
               <TrustIndicatorCard delay={0.1} className="p-6">
               <div className="flex flex-col items-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 flex items-center justify-center mb-3">
-                    <ShieldCheck className="h-8 w-8 text-green-600 dark:text-green-400" />
+                    <Github className="h-8 w-8 text-green-600 dark:text-green-400" />
                   </div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">SOC 2 Audited</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Independently verified</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Open Source</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Code is public & auditable</p>
                 </div>
               </TrustIndicatorCard>
 
               <TrustIndicatorCard delay={0.2} className="p-6">
                 <div className="flex flex-col items-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/50 flex items-center justify-center mb-3">
-                    <Award className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                    <Lock className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Penetration Tested</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">By security experts</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">Local First</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm">Your data stays on your device</p>
               </div>
               </TrustIndicatorCard>
 
