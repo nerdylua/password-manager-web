@@ -16,7 +16,7 @@ export function Navigation({ showAuthButtons = true, currentPath: _currentPath =
   const navLinks = [
     { href: '#features', label: 'Features' },
     { href: '#security', label: 'Security' },
-    { href: '#pricing', label: 'Pricing' },
+    { href: '#about', label: 'About' },
   ];
 
   return (

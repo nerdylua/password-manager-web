@@ -140,7 +140,7 @@ export function NavigationMobile({
                   </div>
                 </>
               ) : (
-                <div className="space-y-3">
+                <div className="flex flex-col gap-3">
                   <Link href="/auth/login" onClick={() => setOpen(false)}>
                     <Button variant="outline" className="w-full h-11 font-medium border-gray-300 dark:border-gray-600">
                       Sign In

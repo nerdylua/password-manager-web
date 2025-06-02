@@ -4,6 +4,7 @@ export interface EncryptedData {
   encryptedData: string;
   iv: string;
   salt: string;
+  hmac?: string; // Optional for backward compatibility with old data
   keyDerivationParams: {
     iterations: number;
     keySize: number;
@@ -45,6 +46,33 @@ export interface VaultItem {
 export class ZeroKnowledgeEncryption {
   private static readonly DEFAULT_ITERATIONS = 100000;
   private static readonly DEFAULT_KEY_SIZE = 256 / 32; // 256 bits / 32 bits per word
+  
+  // Session key cache to avoid re-derivation
+  private static sessionCache = new Map<string, { key: CryptoJS.lib.WordArray; timestamp: number }>();
+  private static readonly CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+
+  /**
+   * Gets cached key or derives new one
+   */
+  private static getCachedKey(masterPassword: string, salt: string, iterations: number, keySize: number): CryptoJS.lib.WordArray {
+    const cacheKey = `${masterPassword}_${salt}_${iterations}_${keySize}`;
+    const cached = this.sessionCache.get(cacheKey);
+    
+    if (cached && (Date.now() - cached.timestamp) < this.CACHE_DURATION) {
+      return cached.key;
+    }
+    
+    const key = this.deriveKey(masterPassword, salt, iterations, keySize);
+    this.sessionCache.set(cacheKey, { key, timestamp: Date.now() });
+    return key;
+  }
+
+  /**
+   * Clears session cache (call on logout)
+   */
+  static clearSessionCache(): void {
+    this.sessionCache.clear();
+  }
 
   /**
    * Derives an encryption key from a master password using PBKDF2
@@ -77,7 +105,8 @@ export class ZeroKnowledgeEncryption {
   }
 
   /**
-   * Encrypts data using AES-256-GCM with zero-knowledge architecture
+   * Encrypts data using AES-256-CBC + HMAC for authenticated encryption
+   * Provides both confidentiality (AES) and authenticity (HMAC)
    */
   static encrypt(data: string, masterPassword: string): EncryptedData {
     try {
@@ -87,19 +116,33 @@ export class ZeroKnowledgeEncryption {
       const keySize = this.DEFAULT_KEY_SIZE;
 
       // Derive encryption key from master password
-      const key = this.deriveKey(masterPassword, salt, iterations, keySize);
+      const encKey = this.getCachedKey(masterPassword, salt, iterations, keySize);
+      
+      // Derive separate HMAC key for authentication
+      const hmacKey = CryptoJS.PBKDF2(masterPassword, salt + 'HMAC', {
+        iterations,
+        keySize,
+        hasher: CryptoJS.algo.SHA512
+      });
 
-      // Encrypt the data
-      const encrypted = CryptoJS.AES.encrypt(data, key, {
+      // Encrypt the data using CBC mode
+      const encrypted = CryptoJS.AES.encrypt(data, encKey, {
         iv: CryptoJS.enc.Hex.parse(iv),
         mode: CryptoJS.mode.CBC,
         padding: CryptoJS.pad.Pkcs7
       });
 
+      const ciphertext = encrypted.toString();
+      
+      // Create HMAC over IV + ciphertext for authentication
+      const hmacInput = iv + ciphertext;
+      const hmac = CryptoJS.HmacSHA256(hmacInput, hmacKey).toString();
+
       return {
-        encryptedData: encrypted.toString(),
+        encryptedData: ciphertext,
         iv,
         salt,
+        hmac,
         keyDerivationParams: {
           iterations,
           keySize
@@ -111,22 +154,36 @@ export class ZeroKnowledgeEncryption {
   }
 
   /**
-   * Decrypts data using the master password
+   * Decrypts data using the master password with HMAC verification
+   * Includes backward compatibility for data without HMAC
    */
   static decrypt(encryptedData: EncryptedData, masterPassword: string): string {
     try {
-      const { encryptedData: data, iv, salt, keyDerivationParams } = encryptedData;
+      const { encryptedData: data, iv, salt, hmac, keyDerivationParams } = encryptedData;
       
-      // Derive the same key using stored parameters
-      const key = this.deriveKey(
-        masterPassword,
-        salt,
-        keyDerivationParams.iterations,
-        keyDerivationParams.keySize
-      );
+      // Derive the same keys using stored parameters
+      const encKey = this.getCachedKey(masterPassword, salt, keyDerivationParams.iterations, keyDerivationParams.keySize);
+      
+      // Check if this is legacy data without HMAC (backward compatibility)
+      if (hmac) {
+        const hmacKey = CryptoJS.PBKDF2(masterPassword, salt + 'HMAC', {
+          iterations: keyDerivationParams.iterations,
+          keySize: keyDerivationParams.keySize,
+          hasher: CryptoJS.algo.SHA512
+        });
+
+        // Verify HMAC before decryption to detect tampering
+        const hmacInput = iv + data;
+        const computedHmac = CryptoJS.HmacSHA256(hmacInput, hmacKey).toString();
+        
+        if (computedHmac !== hmac) {
+          throw new Error('Authentication failed - data has been tampered with');
+        }
+      }
+      // If no HMAC field, this is legacy data - proceed without verification
 
       // Decrypt the data
-      const decrypted = CryptoJS.AES.decrypt(data, key, {
+      const decrypted = CryptoJS.AES.decrypt(data, encKey, {
         iv: CryptoJS.enc.Hex.parse(iv),
         mode: CryptoJS.mode.CBC,
         padding: CryptoJS.pad.Pkcs7
@@ -162,12 +219,14 @@ export class ZeroKnowledgeEncryption {
 
   /**
    * Verifies the master password by attempting to decrypt a test string
+   * Uses cached key for better performance
    */
   static verifyMasterPassword(
     testEncryptedData: EncryptedData,
     masterPassword: string
   ): boolean {
     try {
+      // Use cached decryption for faster verification
       this.decrypt(testEncryptedData, masterPassword);
       return true;
     } catch {
@@ -264,19 +323,33 @@ export class ZeroKnowledgeEncryption {
       const keySize = this.DEFAULT_KEY_SIZE;
 
       // Derive encryption key from master password
-      const key = this.deriveKey(masterPassword, salt, iterations, keySize);
+      const encKey = this.getCachedKey(masterPassword, salt, iterations, keySize);
+      
+      // Derive separate HMAC key for authentication
+      const hmacKey = CryptoJS.PBKDF2(masterPassword, salt + 'HMAC', {
+        iterations,
+        keySize,
+        hasher: CryptoJS.algo.SHA512
+      });
 
       // Encrypt the data
-      const encrypted = CryptoJS.AES.encrypt(data, key, {
+      const encrypted = CryptoJS.AES.encrypt(data, encKey, {
         iv: CryptoJS.enc.Hex.parse(iv),
         mode: CryptoJS.mode.CBC,
         padding: CryptoJS.pad.Pkcs7
       });
 
+      const ciphertext = encrypted.toString();
+      
+      // Create HMAC over IV + ciphertext for authentication
+      const hmacInput = iv + ciphertext;
+      const hmac = CryptoJS.HmacSHA256(hmacInput, hmacKey).toString();
+
       return {
-        encryptedData: encrypted.toString(),
+        encryptedData: ciphertext,
         iv,
         salt,
+        hmac,
         keyDerivationParams: {
           iterations,
           keySize
