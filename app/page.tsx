@@ -400,7 +400,7 @@ export default function HomePage() {
   ], []);
 
   const stats = useMemo(() => [
-    { value: 2025, suffix: "", label: "SOC 2 Type II Certified" },
+    { value: 2025, suffix: "", label: "Actively Maintained" },
     { value: 99, suffix: ".9%", label: "Independently Verified Uptime" },
     { value: 256, suffix: "-bit", label: "AES Encryption" },
     { value: 0, suffix: " ", label: "Critical Vulnerabilities (Current)" }
