@@ -398,7 +398,7 @@ const formatTimeAgo = (timestamp: number): string => {
 // Memoized recent item component
 const RecentItem = memo(({ item, onClick }: { item: VaultItem; onClick: () => void }) => (
   <div
-    className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+    className="flex items-center justify-between p-3 rounded-lg border border-slate-200/70 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors cursor-pointer"
     onClick={onClick}
   >
     <div className="flex items-center space-x-3">
@@ -406,7 +406,7 @@ const RecentItem = memo(({ item, onClick }: { item: VaultItem; onClick: () => vo
         <CategoryIcon category={item.category} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
           {item.name}
         </p>
         <div className="flex items-center space-x-2 mt-1">
@@ -422,10 +422,10 @@ const RecentItem = memo(({ item, onClick }: { item: VaultItem; onClick: () => vo
       </div>
     </div>
     <div className="flex items-center space-x-3">
-      <span className="text-xs text-gray-500 dark:text-gray-400">
+      <span className="text-xs text-slate-500 dark:text-slate-400">
         {formatTimeAgo(item.lastModified)}
       </span>
-      <ChevronRight className="h-4 w-4 text-gray-400" />
+      <ChevronRight className="h-4 w-4 text-slate-400" />
     </div>
   </div>
 ));
@@ -904,12 +904,12 @@ function DashboardContent() {
 
   return (
     <TooltipProvider delayDuration={0}>
-    <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 ${
+    <div className={`app-shell ${
       loadingItems || buttonStates.refresh || buttonStates.exportVault || buttonStates.securityAudit || buttonStates.generatePassword 
         ? 'cursor-wait' 
         : ''
     }`}>
-        <header className="bg-white dark:bg-gray-800 shadow border-b">
+        <header className="bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/70 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-4">
               <div className="flex items-center space-x-4">
@@ -932,16 +932,16 @@ function DashboardContent() {
 
                 <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
               <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <h1 className="text-2xl font-semibold text-slate-900 dark:text-white tracking-tight">
                     CryptLock Dashboard
                   </h1>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Security overview and quick actions
                   </p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                <span className="text-sm text-gray-500 dark:text-gray-400 mr-4 text-center">
+                <span className="text-sm text-slate-500 dark:text-slate-400 mr-4 text-center">
                   Welcome, {userProfile?.displayName || user?.email?.split('@')[0]}
                 </span>
                 
@@ -972,7 +972,7 @@ function DashboardContent() {
                       variant="outline"
                       size="sm"
                       onClick={navigateToVault}
-                      className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                      className="app-cta-outline"
                     >
                       <Folder className="h-4 w-4 mr-2" />
                       Open Vault
@@ -1022,17 +1022,17 @@ function DashboardContent() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Loading Progress Indicator */}
           {loadingItems && (
-            <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border shadow-sm p-6">
+            <div className="mb-6 app-surface p-6">
               <div className="flex items-center space-x-4">
                 <div className="flex-shrink-0">
                   <RefreshCw className="h-6 w-6 text-blue-600 dark:text-blue-400 animate-spin" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    <span className="text-sm font-medium text-slate-900 dark:text-white">
                       {loadingProgress.stage}
                     </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
                       {loadingProgress.current}/{loadingProgress.total}
                     </span>
                   </div>
@@ -1042,7 +1042,7 @@ function DashboardContent() {
                       style={{ width: `${(loadingProgress.current / loadingProgress.total) * 100}%` }}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                     Decrypting your vault data locally in your browser for maximum security
                   </p>
                 </div>
@@ -1052,18 +1052,18 @@ function DashboardContent() {
 
           {/* Welcome Section */}
           <div className="mb-8">
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-700">
+            <div className="app-surface p-6 border-l-2 border-blue-600/70">
               <div className="flex items-center justify-between">
                 <div>
                   {stats.totalItems === 0 ? (
                     <>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
                         Your Vault is Ready
                       </h2>
-                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      <p className="text-slate-600 dark:text-slate-400 mb-4">
                         Start securing your digital life by adding passwords, notes, and payment cards to your encrypted vault.
                       </p>
-                      <Button onClick={navigateToVault} className="bg-blue-600 hover:bg-blue-700">
+                      <Button onClick={navigateToVault} className="app-cta">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Your First Item
                         <ArrowRight className="h-4 w-4 ml-2" />
@@ -1071,13 +1071,13 @@ function DashboardContent() {
                     </>
                   ) : (
                     <>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
                         Your Vault is Secure
                       </h2>
-                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      <p className="text-slate-600 dark:text-slate-400 mb-4">
                         You have {stats.totalItems} {stats.totalItems === 1 ? 'item' : 'items'} safely encrypted in your vault.
                       </p>
-                      <Button onClick={navigateToVault} className="bg-blue-600 hover:bg-blue-700">
+                      <Button onClick={navigateToVault} className="app-cta">
                         <Folder className="h-4 w-4 mr-2" />
                         Manage Vault
                         <ArrowRight className="h-4 w-4 ml-2" />
@@ -1086,8 +1086,8 @@ function DashboardContent() {
                   )}
                 </div>
                 <div className="hidden md:block">
-                  <div className="w-24 h-24 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                    <Shield className="w-12 h-12 text-blue-600 dark:text-blue-400" />
+                  <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center">
+                    <Shield className="w-10 h-10 text-slate-700 dark:text-slate-200" />
                   </div>
                 </div>
               </div>
@@ -1448,26 +1448,26 @@ function DashboardContent() {
                   </div>
                   
                 {/* Dynamic Recommendations */}
-                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <div className="p-4 app-surface">
                   <div className="flex items-start space-x-3">
                     <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
                     <div>
                       {stats.totalItems === 0 ? (
                         <>
-                          <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">Vault Security Overview</p>
-                          <p className="text-sm text-blue-600 dark:text-blue-400 mb-2">
+                          <p className="font-medium text-slate-900 dark:text-white mb-1">Vault Security Overview</p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
                             Your vault is empty but ready for secure storage. When you add items, we'll analyze their security and provide personalized recommendations.
                           </p>
                           <div className="grid grid-cols-1 gap-2 mt-3">
-                            <div className="flex items-center text-xs text-blue-600 dark:text-blue-400">
+                            <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
                               <Shield className="h-3 w-3 mr-2" />
                               Zero-knowledge encryption active
                             </div>
-                            <div className="flex items-center text-xs text-blue-600 dark:text-blue-400">
+                            <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
                               <Key className="h-3 w-3 mr-2" />
                               AES-256 encryption ready
                             </div>
-                            <div className="flex items-center text-xs text-blue-600 dark:text-blue-400">
+                            <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
                               <Lock className="h-3 w-3 mr-2" />
                               Master password protected
                             </div>
@@ -1475,8 +1475,8 @@ function DashboardContent() {
                         </>
                       ) : stats.weakPasswords > 0 || stats.duplicatePasswords > 0 ? (
                         <>
-                          <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">Security Recommendations</p>
-                          <p className="text-sm text-blue-600 dark:text-blue-400 mb-2">
+                          <p className="font-medium text-slate-900 dark:text-white mb-1">Security Recommendations</p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
                             {stats.weakPasswords > 0 && stats.duplicatePasswords > 0 
                               ? `You have ${stats.weakPasswords} weak and ${stats.duplicatePasswords} duplicate passwords. Consider updating them for better security.`
                               : stats.weakPasswords > 0 
@@ -1486,30 +1486,30 @@ function DashboardContent() {
                           <Button 
                             size="sm" 
                             onClick={navigateToVaultWithSecurityHighlight}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            className="app-cta"
                           >
                             Review Passwords
                           </Button>
                         </>
                       ) : (
                         <>
-                          <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">Advanced Security Insights</p>
+                          <p className="font-medium text-slate-900 dark:text-white mb-1">Advanced Security Insights</p>
                           <div className="space-y-2 mb-3">
                             <div className="flex items-center justify-between text-sm">
-                              <span className="text-blue-600 dark:text-blue-400">Password Diversity</span>
-                              <span className="text-blue-800 dark:text-blue-200 font-medium">
+                              <span className="text-slate-500 dark:text-slate-400">Password Diversity</span>
+                              <span className="text-slate-900 dark:text-slate-100 font-medium">
                                 {stats.totalItems > 0 ? 'Excellent' : 'N/A'}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
-                              <span className="text-blue-600 dark:text-blue-400">Two-Factor Ready</span>
-                              <span className="text-blue-800 dark:text-blue-200 font-medium">
+                              <span className="text-slate-500 dark:text-slate-400">Two-Factor Ready</span>
+                              <span className="text-slate-900 dark:text-slate-100 font-medium">
                                 {stats.totalItems > 0 ? 'Yes' : 'N/A'}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
-                              <span className="text-blue-600 dark:text-blue-400">Data Categories</span>
-                              <span className="text-blue-800 dark:text-blue-200 font-medium">
+                              <span className="text-slate-500 dark:text-slate-400">Data Categories</span>
+                              <span className="text-slate-900 dark:text-slate-100 font-medium">
                                 {categoryCount} types
                               </span>
                             </div>
@@ -1519,14 +1519,14 @@ function DashboardContent() {
                               size="sm" 
                               variant="outline"
                               onClick={handleSecurityAudit}
-                              className="text-xs"
+                              className="app-cta-outline text-xs"
                             >
                               Run Audit
                             </Button>
                             <Button 
                               size="sm" 
                               onClick={navigateToVaultWithSecurityHighlight}
-                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                              className="app-cta text-xs"
                             >
                               Add More
                             </Button>
@@ -1540,39 +1540,39 @@ function DashboardContent() {
                 {/* Additional Security Metrics */}
                 {stats.totalItems > 0 && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200/70 dark:border-slate-800/70">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <Clock className="h-4 w-4 text-gray-500" />
-                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                          <Clock className="h-4 w-4 text-slate-500" />
+                          <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                             Password Age
                           </span>
                         </div>
                       </div>
                       <div className="mt-1">
-                        <span className="text-sm font-bold text-gray-900 dark:text-white">
+                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
                           {passwordAge}
                         </span>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           Average freshness
                         </p>
                       </div>
                     </div>
 
-                    <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200/70 dark:border-slate-800/70">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <Shield className="h-4 w-4 text-gray-500" />
-                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                          <Shield className="h-4 w-4 text-slate-500" />
+                          <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                             Encryption
                           </span>
                         </div>
                       </div>
                       <div className="mt-1">
-                        <span className="text-sm font-bold text-green-600">
+                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
                           AES-256
                         </span>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           Military grade
                         </p>
                       </div>

@@ -84,7 +84,7 @@ export default function RootLayout({
       <head>
         <title>CryptLock</title>
       </head>
-      <body className={`${inter.className} overscroll-none`}>
+      <body className={`${inter.className} antialiased`}>
         <AuthProvider>
           <ThemeProvider
             attribute="class"
@@ -100,9 +100,11 @@ export default function RootLayout({
               toastOptions={{
                 duration: 4000,
                 style: {
-                  background: 'var(--background)',
+                  background: 'var(--card)',
                   color: 'var(--foreground)',
                   border: '1px solid var(--border)',
+                  borderRadius: '0.75rem',
+                  boxShadow: '0 10px 30px rgba(15, 23, 42, 0.12)',
                 },
               }}
             />

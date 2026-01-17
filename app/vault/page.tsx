@@ -955,18 +955,18 @@ function VaultContent() {
   // Render empty state
   const renderEmptyState = useCallback(() => (
     <div className="text-center py-16">
-      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-        <Shield className="w-8 h-8 text-gray-400" />
+      <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+        <Shield className="w-8 h-8 text-slate-400" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+      <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
         Your vault is empty
       </h3>
-      <p className="text-gray-600 dark:text-gray-400 mb-6">
+      <p className="text-slate-600 dark:text-slate-400 mb-6">
         Start securing your digital life by adding passwords, notes, and payment cards
       </p>
       <Button 
         onClick={() => setModals(prev => ({ ...prev, showAdd: true }))}
-        className="bg-blue-600 hover:bg-blue-700"
+        className="app-cta"
       >
         <Plus className="w-4 h-4 mr-2" />
         Add Your First Item
@@ -981,8 +981,8 @@ function VaultContent() {
     return (
       <Card 
         key={item.id}
-        className={`hover:shadow-md transition-all duration-200 ${
-          hasSecurityIssue ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/10' : ''
+        className={`app-surface hover:shadow-md transition-all duration-200 ${
+          hasSecurityIssue ? 'border-red-300 dark:border-red-700 bg-red-50/60 dark:bg-red-900/10' : ''
         }`}
       >
         <CardHeader className="pb-3">
@@ -992,7 +992,7 @@ function VaultContent() {
                 <ItemIcon category={item.category} />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white truncate">
                   {item.name}
                 </h3>
                 <div className="flex items-center space-x-2 mt-1">
@@ -1051,7 +1051,7 @@ function VaultContent() {
           <div className="space-y-3">
             {item.username && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">Username</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Username</span>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-mono">{item.username}</span>
                   <Button
@@ -1066,7 +1066,7 @@ function VaultContent() {
             )}
             {item.password && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">Password</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Password</span>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-mono">
                     {state.showPasswords[item.id] ? item.password : '••••••••'}
@@ -1090,7 +1090,7 @@ function VaultContent() {
             )}
             {item.url && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">Website</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Website</span>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm truncate max-w-32">{item.url}</span>
                   <Button
@@ -1140,13 +1140,13 @@ function VaultContent() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 relative ${
+      <div className={`app-shell relative ${
         state.loading || modals.showAdd || buttonStates.refresh || buttonStates.lock || buttonStates.logout || buttonStates.securityAudit 
           ? 'cursor-wait' 
           : ''
       }`}>
         {/* Header */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
+        <header className="bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/70 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-4">
               <div className="flex items-center space-x-4">
@@ -1168,10 +1168,10 @@ function VaultContent() {
                 
                 <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <h1 className="text-2xl font-semibold text-slate-900 dark:text-white tracking-tight">
                     Secure Vault
                   </h1>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     {state.items.length} items • Welcome, {userProfile?.displayName || user?.email?.split('@')[0]}
                   </p>
                 </div>
@@ -1191,10 +1191,10 @@ function VaultContent() {
                         }, 200);
                       }}
                       disabled={modals.showAdd}
-                      className={modals.showAdd ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                      className={modals.showAdd ? 'bg-slate-100 dark:bg-slate-800' : 'app-cta'}
                     >
                       {modals.showAdd ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-200 mr-2"></div>
                       ) : (
                         <Plus className="w-4 h-4 mr-2" />
                       )}
@@ -1211,7 +1211,7 @@ function VaultContent() {
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                     >
                       <Info className="w-4 h-4" />
                     </Button>
@@ -1235,7 +1235,7 @@ function VaultContent() {
                           setButtonStates(prev => ({ ...prev, refresh: true }));
                         }}
                         disabled={buttonStates.refresh}
-                        className={buttonStates.refresh ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                      className={buttonStates.refresh ? 'bg-slate-100 dark:bg-slate-800' : ''}
                       >
                         <RefreshCw className={`w-4 h-4 ${buttonStates.refresh ? 'animate-spin' : ''}`} />
                       </Button>
@@ -1255,7 +1255,7 @@ function VaultContent() {
                           setButtonStates(prev => ({ ...prev, lock: true }));
                         }}
                         disabled={buttonStates.lock}
-                        className={buttonStates.lock ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                      className={buttonStates.lock ? 'bg-slate-100 dark:bg-slate-800' : ''}
                       >
                         <Lock className="w-4 h-4" />
                       </Button>
@@ -1275,10 +1275,10 @@ function VaultContent() {
                           setButtonStates(prev => ({ ...prev, logout: true }));
                         }}
                         disabled={buttonStates.logout}
-                        className={buttonStates.logout ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                      className={buttonStates.logout ? 'bg-slate-100 dark:bg-slate-800' : ''}
                       >
                         {buttonStates.logout ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-200"></div>
                         ) : (
                           <LogOut className="w-4 h-4" />
                         )}
@@ -1298,7 +1298,7 @@ function VaultContent() {
           <div className="flex gap-6">
             {/* Sidebar */}
             <div className="w-64 flex-shrink-0">
-              <Card>
+              <Card className="app-surface">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center">
                     <Grid className="w-5 h-5 mr-2" />
@@ -1333,7 +1333,7 @@ function VaultContent() {
               </Card>
 
               {/* Quick Actions */}
-              <Card className="mt-6">
+              <Card className="mt-6 app-surface">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center">
                     <RefreshCw className="w-5 h-5 mr-2" />
@@ -1345,7 +1345,7 @@ function VaultContent() {
                     <TooltipTrigger asChild>
                       <Button 
                         variant="outline" 
-                        className="w-full justify-start" 
+                        className="w-full justify-start app-cta-outline" 
                         onClick={() => {
                           // Instant visual feedback
                           setButtonStates(prev => ({ ...prev, exportVault: true }));
@@ -1353,7 +1353,7 @@ function VaultContent() {
                         disabled={buttonStates.exportVault}
                       >
                         {buttonStates.exportVault ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-3"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-200 mr-3"></div>
                         ) : (
                           <Download className="w-4 h-4 mr-3" />
                         )}
@@ -1369,7 +1369,7 @@ function VaultContent() {
                     <TooltipTrigger asChild>
                       <Button 
                         variant="outline" 
-                        className="w-full justify-start" 
+                        className="w-full justify-start app-cta-outline" 
                         onClick={() => {
                           // Instant visual feedback
                           setButtonStates(prev => ({ ...prev, importData: true }));
@@ -1377,7 +1377,7 @@ function VaultContent() {
                         disabled={buttonStates.importData}
                       >
                         {buttonStates.importData ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-3"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-200 mr-3"></div>
                         ) : (
                           <Upload className="w-4 h-4 mr-3" />
                         )}
@@ -1393,7 +1393,7 @@ function VaultContent() {
                     <TooltipTrigger asChild>
                       <Button 
                         variant="outline" 
-                        className="w-full justify-start" 
+                        className="w-full justify-start app-cta-outline" 
                         onClick={() => {
                           // Instant visual feedback
                           setButtonStates(prev => ({ ...prev, securityAudit: true }));
@@ -1401,7 +1401,7 @@ function VaultContent() {
                         disabled={buttonStates.securityAudit}
                       >
                         {buttonStates.securityAudit ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-3"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-200 mr-3"></div>
                         ) : (
                           <RefreshCw className="w-4 h-4 mr-3" />
                         )}
@@ -1422,7 +1422,7 @@ function VaultContent() {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-4 flex-1">
                   <div className="relative flex-1 max-w-md">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                     <Input
                       placeholder="Search your vault..."
                       value={state.searchTerm}
@@ -1518,27 +1518,27 @@ function VaultContent() {
 
               {/* Vault Items */}
               {state.loading ? (
-                <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border shadow-sm p-6">
+                <div className="mb-6 app-surface p-6">
                   <div className="flex items-center space-x-4">
                     <div className="flex-shrink-0">
                       <RefreshCw className="h-6 w-6 text-blue-600 dark:text-blue-400 animate-spin" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        <span className="text-sm font-medium text-slate-900 dark:text-white">
                           {state.loadingProgress.stage}
                         </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">
                           {state.loadingProgress.current}/{state.loadingProgress.total}
                         </span>
                       </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3">
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-3">
                         <div 
                           className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300 ease-out"
                           style={{ width: `${(state.loadingProgress.current / state.loadingProgress.total) * 100}%` }}
                         />
                       </div>
-                      <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
                         <Shield className="h-3 w-3" />
                         <span>Zero-knowledge decryption happening locally in your browser</span>
                       </div>
@@ -1548,11 +1548,11 @@ function VaultContent() {
               ) : state.filteredItems.length === 0 ? (
                 state.searchTerm || state.selectedCategory !== 'all' ? (
                   <div className="text-center py-16">
-                    <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    <Search className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                       No items found
                     </h3>
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <p className="text-slate-600 dark:text-slate-400">
                       Try adjusting your search or filter criteria
                     </p>
                   </div>
