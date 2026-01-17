@@ -79,7 +79,7 @@ export function NavigationMobile({
             {/* Header */}
             <div className="flex items-center space-x-3 p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
               <Lock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+              <span className="text-lg font-semibold text-slate-900 dark:text-white tracking-tight">
                 CryptLock
               </span>
             </div>
@@ -147,7 +147,7 @@ export function NavigationMobile({
                     </Button>
                   </Link>
                   <Link href="/auth/register" onClick={() => setOpen(false)}>
-                    <Button className="w-full h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200">
+                    <Button className="w-full h-11 app-cta font-medium shadow-sm hover:shadow-md transition-all duration-300">
                       Get Started Free
                     </Button>
                   </Link>
