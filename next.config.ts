@@ -1,5 +1,6 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
   // Use webpack instead of turbopack for custom webpack config
   turbopack: {},
   
@@ -18,6 +19,7 @@ const nextConfig = {
   webpack: (config, { dev, isServer }) => {
     // Optimize bundle splitting for better INP
     if (!dev && !isServer) {
+      config.optimization = config.optimization || {};
       config.optimization.splitChunks = {
         chunks: 'all',
         cacheGroups: {
@@ -55,6 +57,7 @@ const nextConfig = {
     
     // Optimize imports for better tree shaking
     if (!dev) {
+      config.resolve = config.resolve || {};
       config.resolve.alias = {
         ...config.resolve.alias,
         // Optimize lodash imports if used
@@ -125,4 +128,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig; 
+export default nextConfig;
