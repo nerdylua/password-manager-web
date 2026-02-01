@@ -1,28 +1,23 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Hide all scrollbars globally while allowing scroll */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
 /* Prevent overscroll behavior globally */
 html, body {
   overscroll-behavior: none;
-  overflow-x: hidden; /* Prevent horizontal scrolling */
+  overflow-x: hidden;
   height: 100%;
   margin: 0;
   padding: 0;
-}
-
-/* Ensure full width usage */
-html {
-  width: 100vw;
-  overflow-y: auto; /* Allow vertical scrolling with visible scrollbar */
-}
-
-/* Prevent layout shifts and maintain good layout */
-body {
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-  overflow-y: auto;
-  min-height: 100%;
 }
 
 @custom-variant dark (&:is(.dark *));

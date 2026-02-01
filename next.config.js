@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Use webpack instead of turbopack for custom webpack config
+  turbopack: {},
+  
   // Performance optimizations for better INP
   experimental: {
     // Enable React 18 features for better performance
