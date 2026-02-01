@@ -13,6 +13,28 @@ import { getFirebaseErrorMessage, logError } from '@/lib/firebase-errors';
 import { Eye, EyeOff, Lock, Mail, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// SSR-safe check for browser environment - lazy check to avoid issues during module initialization
+const canUseStorage = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.sessionStorage === 'undefined') return false;
+  if (typeof window.sessionStorage.getItem !== 'function') return false;
+  if (typeof window.sessionStorage.setItem !== 'function') return false;
+  if (typeof window.sessionStorage.removeItem !== 'function') return false;
+  return true;
+};
+
+// SSR-safe sessionStorage wrapper
+const safeSessionStorage = {
+  removeItem: (key: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+};
+
 function LoginContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -100,7 +122,7 @@ function LoginContent() {
       if (isValid) {
         toast.success('Welcome back! Vault unlocked successfully.');
         // Clear any stale session data and ensure clean navigation
-        sessionStorage.removeItem('vaultAccessAuthorized');
+        safeSessionStorage.removeItem('vaultAccessAuthorized');
         // Use the redirect URL from middleware or default to dashboard
         router.replace(redirectTo);
       } else {

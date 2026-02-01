@@ -69,6 +69,36 @@ import AddItemModal from '@/components/AddItemModal';
 import ErrorModal from '@/components/ErrorModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 
+// SSR-safe check for browser environment - lazy check to avoid issues during module initialization
+const canUseStorage = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.sessionStorage === 'undefined') return false;
+  if (typeof window.sessionStorage.getItem !== 'function') return false;
+  if (typeof window.sessionStorage.setItem !== 'function') return false;
+  if (typeof window.sessionStorage.removeItem !== 'function') return false;
+  return true;
+};
+
+// SSR-safe sessionStorage wrapper
+const safeSessionStorage = {
+  getItem: (key: string): string | null => {
+    if (!canUseStorage()) return null;
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  removeItem: (key: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+};
+
 // Optimized interfaces for better performance
 interface VaultPageState {
   items: VaultItem[];
@@ -891,7 +921,7 @@ function VaultContent() {
   // Security highlighting initialization - non-blocking
   useEffect(() => {
     const highlight = searchParams.get('highlight');
-    const sessionHighlight = sessionStorage.getItem('highlightSecurityIssues');
+    const sessionHighlight = safeSessionStorage.getItem('highlightSecurityIssues');
     
     if (highlight === 'security' || sessionHighlight === 'true') {
       startTransition(() => {
@@ -899,7 +929,7 @@ function VaultContent() {
       });
       
       // Clear session storage after reading
-      sessionStorage.removeItem('highlightSecurityIssues');
+      safeSessionStorage.removeItem('highlightSecurityIssues');
       
       // Show toast notification
       toast.success('Security highlighting enabled - problematic items are highlighted in red');

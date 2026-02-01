@@ -11,6 +11,36 @@ import { useEffect } from 'react';
 
 const inter = Inter({ subsets: ['latin'] });
 
+// SSR-safe check for browser environment - lazy check to avoid issues during module initialization
+const canUseStorage = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.sessionStorage === 'undefined') return false;
+  if (typeof window.sessionStorage.getItem !== 'function') return false;
+  if (typeof window.sessionStorage.setItem !== 'function') return false;
+  if (typeof window.sessionStorage.removeItem !== 'function') return false;
+  return true;
+};
+
+// SSR-safe sessionStorage wrapper
+const safeSessionStorage = {
+  getItem: (key: string): string | null => {
+    if (!canUseStorage()) return null;
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  removeItem: (key: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+};
+
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -18,19 +48,19 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading) return;
+    if (!canUseStorage()) return;
 
     // Enhanced session state validation
     const validateSessionState = () => {
       // Check if this appears to be a fresh session (new tab/browser restart)
-      const pageRefreshMarker = sessionStorage.getItem('pageRefreshMarker');
-      const vaultAccessAuthorized = sessionStorage.getItem('vaultAccessAuthorized');
+      const vaultAccessAuthorized = safeSessionStorage.getItem('vaultAccessAuthorized');
       
       // If user is authenticated but session markers are missing and trying to access vault
       if (user && masterPasswordVerified && pathname.startsWith('/vault') && !vaultAccessAuthorized) {
         // Clear potentially stale master password verification and redirect through dashboard
-        sessionStorage.removeItem('mpv');
-        sessionStorage.removeItem('sessionKey');
-        sessionStorage.removeItem('encryptedMasterPassword');
+        safeSessionStorage.removeItem('mpv');
+        safeSessionStorage.removeItem('sessionKey');
+        safeSessionStorage.removeItem('encryptedMasterPassword');
         router.push('/dashboard');
         return true; // Indicate we handled the redirect
       }
@@ -62,7 +92,7 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
     // Enhanced vault access control - ensure proper navigation flow
     if (pathname.startsWith('/vault') && user && masterPasswordVerified) {
       // Check if user came from dashboard or has proper authorization
-      const cameFromDashboard = sessionStorage.getItem('vaultAccessAuthorized');
+      const cameFromDashboard = safeSessionStorage.getItem('vaultAccessAuthorized');
       if (!cameFromDashboard) {
         // Redirect through dashboard to establish proper session flow
         router.push('/dashboard');

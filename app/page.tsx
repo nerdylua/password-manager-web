@@ -57,6 +57,44 @@ const LazyAlertTriangle = ({ className }: { className?: string }) => (
 
 import { cn } from '@/lib/utils';
 
+// SSR-safe check for browser environment - lazy check to avoid issues during module initialization
+const canUseStorage = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.sessionStorage === 'undefined') return false;
+  if (typeof window.sessionStorage.getItem !== 'function') return false;
+  if (typeof window.sessionStorage.setItem !== 'function') return false;
+  if (typeof window.sessionStorage.removeItem !== 'function') return false;
+  return true;
+};
+
+// SSR-safe sessionStorage wrapper
+const safeSessionStorage = {
+  getItem: (key: string): string | null => {
+    if (!canUseStorage()) return null;
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      // Ignore storage errors
+    }
+  },
+  removeItem: (key: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+};
+
 // Lazy load heavy components that aren't immediately visible
 const ParallaxSection = lazy(() => import('@/components/parallax-section').then(module => ({ default: module.ParallaxSection })));
 const AnimatedCounter = lazy(() => import('@/components/animated-counter').then(module => ({ default: module.AnimatedCounter })));
@@ -262,24 +300,25 @@ export default function HomePage() {
     let scrollTimeout: NodeJS.Timeout;
     
     const handleScroll = () => {
-      // Throttle scroll events to improve performance
-      if (scrollTimeout) {
-        clearTimeout(scrollTimeout);
-      }
-      
-      scrollTimeout = setTimeout(() => {
-        startTransition(() => {
-          setIsScrolled(window.scrollY > 50);
-        });
-      }, 16); // ~60fps
+      // Check multiple scroll sources - body/html may be the scroll container due to CSS
+      const scrollPos = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      setIsScrolled(scrollPos > 50);
     };
     
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    // Set initial state
+    handleScroll();
+    
+    // Listen on multiple targets for scroll events (CSS makes body/html the scroll container)
+    window.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+    document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+    document.body.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+    document.documentElement.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+    
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (scrollTimeout) {
-        clearTimeout(scrollTimeout);
-      }
+      window.removeEventListener("scroll", handleScroll, { capture: true });
+      document.removeEventListener("scroll", handleScroll, { capture: true });
+      document.body.removeEventListener("scroll", handleScroll, { capture: true });
+      document.documentElement.removeEventListener("scroll", handleScroll, { capture: true });
     };
   }, []);
 
@@ -298,7 +337,7 @@ export default function HomePage() {
     startTransition(() => {
       if (masterPasswordVerified) {
         // Clear any stale vault access markers to ensure clean navigation
-        sessionStorage.removeItem('vaultAccessAuthorized');
+        safeSessionStorage.removeItem('vaultAccessAuthorized');
         router.push('/dashboard');
       } else if (user) {
         // User is authenticated but needs master password verification
@@ -315,7 +354,7 @@ export default function HomePage() {
 
   const handleVaultAccess = useCallback(() => {
     startTransition(() => {
-      sessionStorage.setItem('vaultAccessAuthorized', 'true');
+      safeSessionStorage.setItem('vaultAccessAuthorized', 'true');
       router.push('/vault');
     });
   }, [router]);
@@ -1232,9 +1271,9 @@ export default function HomePage() {
       </Suspense>
 
       {/* CTA Section - Optimized lazy loading */}
-      <Suspense fallback={<div className="app-section bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white relative overflow-hidden"><div className="container mx-auto px-4"><div className="h-48 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
+      <Suspense fallback={<div className="app-section bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950 relative overflow-hidden"><div className="container mx-auto px-4"><div className="h-48 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div></div>}>
         <ParallaxSection>
-          <section className="app-section bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white relative overflow-hidden border-t border-slate-800/60">
+          <section className="app-section bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950 text-slate-900 dark:text-white relative overflow-hidden border-t border-slate-200 dark:border-slate-800/60">
             <div className="container mx-auto px-4 text-center relative z-10">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -1242,22 +1281,22 @@ export default function HomePage() {
                 transition={{ duration: 0.6 }}
                 viewport={{ once: true, margin: "-50px" }}
               >
-                <h2 className="text-4xl md:text-5xl font-semibold mb-6 tracking-tight">
+                <h2 className="text-4xl md:text-5xl font-semibold mb-6 tracking-tight text-slate-900 dark:text-white">
             Ready to Secure Your Digital Life?
           </h2>
-                <p className="text-xl mb-8 max-w-2xl mx-auto text-slate-300">
+                <p className="text-xl mb-8 max-w-2xl mx-auto text-slate-600 dark:text-slate-300">
                   Be among the first to experience next-generation password security. Start your journey to better digital protection today.
           </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                   <Link href="/auth/register" className="w-auto">
-                    <Button size="lg" variant="secondary" className="w-auto text-lg px-8 py-4 bg-white text-slate-900 hover:bg-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
+                    <Button size="lg" variant="secondary" className="w-auto text-lg px-8 py-4 bg-blue-600 dark:bg-white text-white dark:text-slate-900 hover:bg-blue-700 dark:hover:bg-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
                       <Rocket className="mr-2 h-5 w-5" />
                       Start Free Today
                       <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
                   </Link>
                   <div className="w-auto">
-                    <Button size="lg" variant="outline" className="w-auto text-lg px-8 py-4 bg-white/5 border-white/50 text-white hover:bg-white hover:text-slate-900 transition-all duration-300" asChild>
+                    <Button size="lg" variant="outline" className="w-auto text-lg px-8 py-4 bg-slate-100 dark:bg-white/5 border-slate-300 dark:border-white/50 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-white dark:hover:text-slate-900 transition-all duration-300" asChild>
                       <a href="https://github.com/nerdylua/password-manager-web" target="_blank" rel="noopener noreferrer">
                         <Github className="mr-2 h-5 w-5" />
                         View on GitHub
@@ -1272,30 +1311,30 @@ export default function HomePage() {
       </Suspense>
 
       {/* Footer */}
-      <footer className="bg-slate-950 text-white py-16">
+      <footer className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white py-16">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             {/* Company Info */}
             <div className="text-center">
               <div className="flex items-center justify-center space-x-3 mb-4">
-                <Lock className="h-8 w-8 text-blue-400" />
+                <Lock className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                 <span className="text-2xl font-bold">CryptLock</span>
               </div>
-              <p className="text-slate-400 mb-4">
+              <p className="text-slate-600 dark:text-slate-400 mb-4">
                 Zero-knowledge password manager built for privacy and security. Forever free, forever secure.
               </p>
               <div className="flex justify-center space-x-4">
-                <Button variant="ghost" size="sm" className="p-2 hover:bg-slate-900" asChild>
+                <Button variant="ghost" size="sm" className="p-2 hover:bg-slate-200 dark:hover:bg-slate-900" asChild>
                   <a href="https://x.com/nerdylua" target="_blank" rel="noopener noreferrer">
                     <Twitter className="h-5 w-5" />
                   </a>
                 </Button>
-                <Button variant="ghost" size="sm" className="p-2 hover:bg-slate-900" asChild>
+                <Button variant="ghost" size="sm" className="p-2 hover:bg-slate-200 dark:hover:bg-slate-900" asChild>
                   <a href="https://github.com/nerdylua/password-manager-web" target="_blank" rel="noopener noreferrer">
                     <Github className="h-5 w-5" />
                   </a>
                 </Button>
-                <Button variant="ghost" size="sm" className="p-2 hover:bg-slate-900" asChild>
+                <Button variant="ghost" size="sm" className="p-2 hover:bg-slate-200 dark:hover:bg-slate-900" asChild>
                   <a href="mailto:nihaalsp7@gmail.com">
                     <Mail className="h-5 w-5" />
                   </a>
@@ -1306,25 +1345,25 @@ export default function HomePage() {
             {/* Product */}
             <div className="text-center">
               <h3 className="text-lg font-semibold mb-4">Product</h3>
-              <ul className="space-y-2 text-slate-400">
-                <li><Link href="#features" className="hover:text-white transition-colors">Features</Link></li>
-                <li><Link href="#extension" className="hover:text-white transition-colors">Extension</Link></li>
-                <li><Link href="#privacy" className="hover:text-white transition-colors">Privacy Proof</Link></li>
-                <li><Link href="/auth/register" className="hover:text-white transition-colors">Get Started</Link></li>
-                <li><Link href="/auth/login" className="hover:text-white transition-colors">Sign In</Link></li>
+              <ul className="space-y-2 text-slate-600 dark:text-slate-400">
+                <li><Link href="#features" className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</Link></li>
+                <li><Link href="#extension" className="hover:text-slate-900 dark:hover:text-white transition-colors">Extension</Link></li>
+                <li><Link href="#privacy" className="hover:text-slate-900 dark:hover:text-white transition-colors">Privacy Proof</Link></li>
+                <li><Link href="/auth/register" className="hover:text-slate-900 dark:hover:text-white transition-colors">Get Started</Link></li>
+                <li><Link href="/auth/login" className="hover:text-slate-900 dark:hover:text-white transition-colors">Sign In</Link></li>
               </ul>
             </div>
 
             {/* Support */}
             <div className="text-center">
               <h3 className="text-lg font-semibold mb-4">Support</h3>
-              <ul className="space-y-2 text-slate-400">
+              <ul className="space-y-2 text-slate-600 dark:text-slate-400">
                 <li>
                   <a 
                     href="https://github.com/nerdylua/password-manager-web/issues" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="hover:text-white transition-colors"
+                    className="hover:text-slate-900 dark:hover:text-white transition-colors"
                   >
                     Report Issues & Get Help
                   </a>
@@ -1333,8 +1372,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-center items-center">
-            <p className="text-slate-400 text-sm text-center">
+          <div className="border-t border-slate-300 dark:border-slate-800 pt-8 flex flex-col md:flex-row justify-center items-center">
+            <p className="text-slate-600 dark:text-slate-400 text-sm text-center">
               © 2025 CryptLock. All rights reserved. Built with ❤️ for privacy.
             </p>
           </div>

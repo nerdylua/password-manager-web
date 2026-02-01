@@ -1,5 +1,21 @@
 'use client';
 
+// Patch the global localStorage on the server to provide a no-op mock
+// This prevents errors from third-party libraries that access localStorage directly
+// Node.js 22+ has a broken localStorage object from --localstorage-file flag when the path is invalid
+if (typeof window === 'undefined' && typeof globalThis.localStorage !== 'undefined') {
+  const noopStorage = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+    clear: () => {},
+    key: () => null,
+    length: 0
+  };
+  (globalThis as unknown as { localStorage: typeof noopStorage }).localStorage = noopStorage;
+  (globalThis as unknown as { sessionStorage: typeof noopStorage }).sessionStorage = noopStorage;
+}
+
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { 
   User,
@@ -79,14 +95,100 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
+// SSR-safe check for browser environment - lazy check to avoid issues during module initialization
+const canUseStorage = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  // Check if localStorage and sessionStorage exist and their methods are actual functions
+  try {
+    const ls = window.localStorage;
+    const ss = window.sessionStorage;
+    if (!ls || !ss) return false;
+    if (typeof ls.getItem !== 'function') return false;
+    if (typeof ls.setItem !== 'function') return false;
+    if (typeof ls.removeItem !== 'function') return false;
+    if (typeof ss.getItem !== 'function') return false;
+    if (typeof ss.setItem !== 'function') return false;
+    if (typeof ss.removeItem !== 'function') return false;
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// SSR-safe localStorage wrapper - MUST use window.localStorage to avoid Node.js's broken global localStorage
+const safeLocalStorage = {
+  getItem: (key: string): string | null => {
+    if (!canUseStorage()) return null;
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Ignore storage errors
+    }
+  },
+  removeItem: (key: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors
+    }
+  },
+  keys: (): string[] => {
+    if (!canUseStorage()) return [];
+    try {
+      return Object.keys(window.localStorage);
+    } catch {
+      return [];
+    }
+  }
+};
+
+// SSR-safe sessionStorage wrapper
+const safeSessionStorage = {
+  getItem: (key: string): string | null => {
+    if (!canUseStorage()) return null;
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      // Ignore storage errors
+    }
+  },
+  removeItem: (key: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+};
+
 // Cookie management utilities
 const setCookie = (name: string, value: string, days: number = 7) => {
+  if (typeof window === 'undefined') return;
   const expires = new Date();
   expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
   document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;secure;samesite=strict`;
 };
 
 const deleteCookie = (name: string) => {
+  if (typeof window === 'undefined') return;
   document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;secure;samesite=strict`;
 };
 
@@ -187,24 +289,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setSessionKey(null);
     setMasterPasswordVerified(false);
     
+    // Skip storage operations if not in browser
+    if (!canUseStorage()) return;
+    
     // Clear all session storage items
-    sessionStorage.removeItem('mpv');
-    sessionStorage.removeItem('sessionKey');
-    sessionStorage.removeItem('encryptedMasterPassword');
-    sessionStorage.removeItem('vaultAccessAuthorized');
-    sessionStorage.removeItem('highlightSecurityIssues');
-    sessionStorage.removeItem('pageRefreshMarker');
-    sessionStorage.removeItem('sessionId');
+    safeSessionStorage.removeItem('mpv');
+    safeSessionStorage.removeItem('sessionKey');
+    safeSessionStorage.removeItem('encryptedMasterPassword');
+    safeSessionStorage.removeItem('vaultAccessAuthorized');
+    safeSessionStorage.removeItem('highlightSecurityIssues');
+    safeSessionStorage.removeItem('pageRefreshMarker');
+    safeSessionStorage.removeItem('sessionId');
     
     // Clear localStorage items related to tab close detection
-    const sessionId = sessionStorage.getItem('sessionId');
+    const sessionId = safeSessionStorage.getItem('sessionId');
     if (sessionId) {
-      localStorage.removeItem(`refresh_${sessionId}`);
-      localStorage.removeItem(`refresh_${sessionId}_timestamp`);
-      localStorage.removeItem(`tab_hidden_${sessionId}`);
+      safeLocalStorage.removeItem(`refresh_${sessionId}`);
+      safeLocalStorage.removeItem(`refresh_${sessionId}_timestamp`);
+      safeLocalStorage.removeItem(`tab_hidden_${sessionId}`);
     }
-    localStorage.removeItem('tabClosed');
-    localStorage.removeItem('tabClosedTimestamp');
+    safeLocalStorage.removeItem('tabClosed');
+    safeLocalStorage.removeItem('tabClosedTimestamp');
     
     // Clear cookies
     deleteCookie('auth-token');
@@ -213,23 +318,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Enhanced session management for better tab close/refresh detection
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!canUseStorage()) return;
 
     // Enhanced tab close detection with localStorage coordination
-    const sessionId = sessionStorage.getItem('sessionId') || crypto.randomUUID();
-    sessionStorage.setItem('sessionId', sessionId);
+    const sessionId = safeSessionStorage.getItem('sessionId') || crypto.randomUUID();
+    safeSessionStorage.setItem('sessionId', sessionId);
     
     // Track if this is a page refresh by checking if the session was marked as refreshing
-    const isPageRefresh = localStorage.getItem(`refresh_${sessionId}`) === 'true';
+    const isPageRefresh = safeLocalStorage.getItem(`refresh_${sessionId}`) === 'true';
     
     // Clean up old session refresh markers (older than 5 seconds)
     const cleanupOldMarkers = () => {
-      Object.keys(localStorage).forEach(key => {
+      safeLocalStorage.keys().forEach(key => {
         if (key.startsWith('refresh_') && key !== `refresh_${sessionId}`) {
-          const timestamp = localStorage.getItem(`${key}_timestamp`);
+          const timestamp = safeLocalStorage.getItem(`${key}_timestamp`);
           if (!timestamp || Date.now() - parseInt(timestamp) > 5000) {
-            localStorage.removeItem(key);
-            localStorage.removeItem(`${key}_timestamp`);
+            safeLocalStorage.removeItem(key);
+            safeLocalStorage.removeItem(`${key}_timestamp`);
           }
         }
       });
@@ -241,14 +346,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Only clear stale session data if this is a new tab (not a refresh)
       if (user && !masterPasswordVerified && !isPageRefresh) {
         console.log('New tab detected, clearing stale session data');
-        sessionStorage.removeItem('mpv');
-        sessionStorage.removeItem('sessionKey');
-        sessionStorage.removeItem('encryptedMasterPassword');
+        safeSessionStorage.removeItem('mpv');
+        safeSessionStorage.removeItem('sessionKey');
+        safeSessionStorage.removeItem('encryptedMasterPassword');
         deleteCookie('master-password-verified');
         
         // Clear vault access authorization to prevent inconsistent state
-        sessionStorage.removeItem('vaultAccessAuthorized');
-        sessionStorage.removeItem('highlightSecurityIssues');
+        safeSessionStorage.removeItem('vaultAccessAuthorized');
+        safeSessionStorage.removeItem('highlightSecurityIssues');
       }
     };
 
@@ -258,31 +363,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     // Clear the refresh marker after processing
-    localStorage.removeItem(`refresh_${sessionId}`);
-    localStorage.removeItem(`refresh_${sessionId}_timestamp`);
+    safeLocalStorage.removeItem(`refresh_${sessionId}`);
+    safeLocalStorage.removeItem(`refresh_${sessionId}_timestamp`);
 
     // Enhanced beforeunload handler to mark page refresh
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       // Mark this as a potential refresh
-      localStorage.setItem(`refresh_${sessionId}`, 'true');
-      localStorage.setItem(`refresh_${sessionId}_timestamp`, Date.now().toString());
+      safeLocalStorage.setItem(`refresh_${sessionId}`, 'true');
+      safeLocalStorage.setItem(`refresh_${sessionId}_timestamp`, Date.now().toString());
       
       // Set a timer to remove the marker if the page doesn't load again
       // This will catch actual tab closes
       setTimeout(() => {
-        const stillMarked = localStorage.getItem(`refresh_${sessionId}`);
+        const stillMarked = safeLocalStorage.getItem(`refresh_${sessionId}`);
         if (stillMarked === 'true') {
           // Tab was actually closed, not refreshed
           console.log('Tab close detected, logging out user');
-          localStorage.removeItem(`refresh_${sessionId}`);
-          localStorage.removeItem(`refresh_${sessionId}_timestamp`);
+          safeLocalStorage.removeItem(`refresh_${sessionId}`);
+          safeLocalStorage.removeItem(`refresh_${sessionId}_timestamp`);
           
           // Clear all session data for this session
           if (user) {
             // Use a different approach for tab close logout
             // Set a flag that will be checked on next page load
-            localStorage.setItem('tabClosed', 'true');
-            localStorage.setItem('tabClosedTimestamp', Date.now().toString());
+            safeLocalStorage.setItem('tabClosed', 'true');
+            safeLocalStorage.setItem('tabClosedTimestamp', Date.now().toString());
           }
         }
       }, 1000);
@@ -292,29 +397,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         // Mark potential tab close
-        localStorage.setItem(`tab_hidden_${sessionId}`, Date.now().toString());
+        safeLocalStorage.setItem(`tab_hidden_${sessionId}`, Date.now().toString());
         
         // If tab stays hidden for too long, consider it closed
         setTimeout(() => {
           if (document.visibilityState === 'hidden') {
-            const hiddenTime = localStorage.getItem(`tab_hidden_${sessionId}`);
+            const hiddenTime = safeLocalStorage.getItem(`tab_hidden_${sessionId}`);
             if (hiddenTime && Date.now() - parseInt(hiddenTime) > 2000) {
               // Tab has been hidden for more than 2 seconds, likely closed
-              localStorage.setItem('tabClosed', 'true');
-              localStorage.setItem('tabClosedTimestamp', Date.now().toString());
+              safeLocalStorage.setItem('tabClosed', 'true');
+              safeLocalStorage.setItem('tabClosedTimestamp', Date.now().toString());
             }
           }
         }, 2000);
       } else if (document.visibilityState === 'visible') {
         // Tab became visible again, clear hidden marker
-        localStorage.removeItem(`tab_hidden_${sessionId}`);
+        safeLocalStorage.removeItem(`tab_hidden_${sessionId}`);
       }
     };
 
     // Check for tab close flag on mount
     const checkTabCloseFlag = () => {
-      const tabClosed = localStorage.getItem('tabClosed');
-      const tabClosedTimestamp = localStorage.getItem('tabClosedTimestamp');
+      const tabClosed = safeLocalStorage.getItem('tabClosed');
+      const tabClosedTimestamp = safeLocalStorage.getItem('tabClosedTimestamp');
       
       if (tabClosed === 'true' && tabClosedTimestamp) {
         const timeSinceClose = Date.now() - parseInt(tabClosedTimestamp);
@@ -329,8 +434,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
         
         // Clear the flags
-        localStorage.removeItem('tabClosed');
-        localStorage.removeItem('tabClosedTimestamp');
+        safeLocalStorage.removeItem('tabClosed');
+        safeLocalStorage.removeItem('tabClosedTimestamp');
       }
     };
 
@@ -345,9 +450,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       
       // Clean up this session's markers
-      localStorage.removeItem(`refresh_${sessionId}`);
-      localStorage.removeItem(`refresh_${sessionId}_timestamp`);
-      localStorage.removeItem(`tab_hidden_${sessionId}`);
+      safeLocalStorage.removeItem(`refresh_${sessionId}`);
+      safeLocalStorage.removeItem(`refresh_${sessionId}_timestamp`);
+      safeLocalStorage.removeItem(`tab_hidden_${sessionId}`);
     };
   }, [user, masterPasswordVerified, clearAllSessionData]);
 
@@ -394,17 +499,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
         
         // Enhanced session restoration with validation
-        const mpvSession = sessionStorage.getItem('mpv');
-        const storedSessionKey = sessionStorage.getItem('sessionKey');
-        const storedEncryptedPassword = sessionStorage.getItem('encryptedMasterPassword');
-        const sessionId = sessionStorage.getItem('sessionId');
+        const mpvSession = safeSessionStorage.getItem('mpv');
+        const storedSessionKey = safeSessionStorage.getItem('sessionKey');
+        const storedEncryptedPassword = safeSessionStorage.getItem('encryptedMasterPassword');
+        const sessionId = safeSessionStorage.getItem('sessionId');
         
         // Only restore session if all conditions are met and it's not a fresh start after tab close
         if (mpvSession === 'verified' && 
             storedSessionKey && 
             storedEncryptedPassword && 
             sessionId &&
-            !localStorage.getItem('tabClosed')) {
+            !safeLocalStorage.getItem('tabClosed')) {
           
           // Run validation asynchronously to avoid blocking
           const validateSession = async () => {
@@ -423,9 +528,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
             } catch (error) {
               // If validation fails, clear potentially corrupted session data
               console.warn('Session validation failed, clearing corrupted data:', error);
-              sessionStorage.removeItem('mpv');
-              sessionStorage.removeItem('sessionKey');
-              sessionStorage.removeItem('encryptedMasterPassword');
+              safeSessionStorage.removeItem('mpv');
+              safeSessionStorage.removeItem('sessionKey');
+              safeSessionStorage.removeItem('encryptedMasterPassword');
               deleteCookie('master-password-verified');
             }
           };
@@ -448,12 +553,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Clear cookies on logout
         deleteCookie('auth-token');
         deleteCookie('master-password-verified');
-        sessionStorage.removeItem('mpv');
-        sessionStorage.removeItem('sessionKey');
-        sessionStorage.removeItem('encryptedMasterPassword');
+        safeSessionStorage.removeItem('mpv');
+        safeSessionStorage.removeItem('sessionKey');
+        safeSessionStorage.removeItem('encryptedMasterPassword');
         // Clear vault access and other session data
-        sessionStorage.removeItem('vaultAccessAuthorized');
-        sessionStorage.removeItem('highlightSecurityIssues');
+        safeSessionStorage.removeItem('vaultAccessAuthorized');
+        safeSessionStorage.removeItem('highlightSecurityIssues');
       }
       
       setLoading(false);
@@ -539,7 +644,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       // Automatically verify master password since it was just set during registration
       setMasterPasswordVerified(true);
-      sessionStorage.setItem('mpv', 'verified');
+      safeSessionStorage.setItem('mpv', 'verified');
       setCookie('master-password-verified', 'true', 1);
 
       // Securely store master password in encrypted memory
@@ -549,8 +654,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setEncryptedMasterPassword(encryptedPassword);
 
       // Persist in sessionStorage for page refreshes
-      sessionStorage.setItem('sessionKey', newSessionKey);
-      sessionStorage.setItem('encryptedMasterPassword', encryptedPassword);
+      safeSessionStorage.setItem('sessionKey', newSessionKey);
+      safeSessionStorage.setItem('encryptedMasterPassword', encryptedPassword);
 
     } catch (error: any) {
       throw new Error(error.message || 'Failed to create account');
@@ -592,7 +697,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const inputFastHash = ZeroKnowledgeEncryption.fastHash(masterPassword, userProfile.masterPasswordSalt);
         if (inputFastHash === userProfile.masterPasswordFastHash) {
           setMasterPasswordVerified(true);
-          sessionStorage.setItem('mpv', 'verified');
+          safeSessionStorage.setItem('mpv', 'verified');
           setCookie('master-password-verified', 'true', 1);
           
           // Securely store master password in encrypted memory and sessionStorage
@@ -602,8 +707,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setEncryptedMasterPassword(encryptedPassword);
           
           // Persist in sessionStorage for page refreshes
-          sessionStorage.setItem('sessionKey', newSessionKey);
-          sessionStorage.setItem('encryptedMasterPassword', encryptedPassword);
+          safeSessionStorage.setItem('sessionKey', newSessionKey);
+          safeSessionStorage.setItem('encryptedMasterPassword', encryptedPassword);
           
           return true;
         }
@@ -615,7 +720,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const inputHash = ZeroKnowledgeEncryption.hash(masterPassword, userProfile.masterPasswordSalt);
         if (inputHash === userProfile.masterPasswordHash) {
           setMasterPasswordVerified(true);
-          sessionStorage.setItem('mpv', 'verified');
+          safeSessionStorage.setItem('mpv', 'verified');
           setCookie('master-password-verified', 'true', 1);
           
           // Upgrade account with fast hash for future logins
@@ -639,8 +744,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setEncryptedMasterPassword(encryptedPassword);
           
           // Persist in sessionStorage for page refreshes
-          sessionStorage.setItem('sessionKey', newSessionKey);
-          sessionStorage.setItem('encryptedMasterPassword', encryptedPassword);
+          safeSessionStorage.setItem('sessionKey', newSessionKey);
+          safeSessionStorage.setItem('encryptedMasterPassword', encryptedPassword);
           
           return true;
         }
@@ -653,7 +758,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       if (isValid) {
         setMasterPasswordVerified(true);
-        sessionStorage.setItem('mpv', 'verified');
+        safeSessionStorage.setItem('mpv', 'verified');
         setCookie('master-password-verified', 'true', 1); // 1 day expiry
         
         // Securely store master password in encrypted memory and sessionStorage
@@ -663,8 +768,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setEncryptedMasterPassword(encryptedPassword);
         
         // Persist in sessionStorage for page refreshes
-        sessionStorage.setItem('sessionKey', newSessionKey);
-        sessionStorage.setItem('encryptedMasterPassword', encryptedPassword);
+        safeSessionStorage.setItem('sessionKey', newSessionKey);
+        safeSessionStorage.setItem('encryptedMasterPassword', encryptedPassword);
       }
       
       return isValid;
@@ -723,11 +828,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Clear master password from memory
     setEncryptedMasterPassword(null);
     setSessionKey(null);
-    sessionStorage.removeItem('mpv');
-    sessionStorage.removeItem('sessionKey');
-    sessionStorage.removeItem('encryptedMasterPassword');
-    sessionStorage.removeItem('vaultAccessAuthorized');
-    sessionStorage.removeItem('highlightSecurityIssues');
+    safeSessionStorage.removeItem('mpv');
+    safeSessionStorage.removeItem('sessionKey');
+    safeSessionStorage.removeItem('encryptedMasterPassword');
+    safeSessionStorage.removeItem('vaultAccessAuthorized');
+    safeSessionStorage.removeItem('highlightSecurityIssues');
     deleteCookie('master-password-verified');
   }, []);
 

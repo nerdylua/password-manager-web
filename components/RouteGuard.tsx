@@ -4,6 +4,36 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/AuthContext';
 
+// SSR-safe check for browser environment - lazy check to avoid issues during module initialization
+const canUseStorage = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.sessionStorage === 'undefined') return false;
+  if (typeof window.sessionStorage.getItem !== 'function') return false;
+  if (typeof window.sessionStorage.setItem !== 'function') return false;
+  if (typeof window.sessionStorage.removeItem !== 'function') return false;
+  return true;
+};
+
+// SSR-safe sessionStorage wrapper
+const safeSessionStorage = {
+  getItem: (key: string): string | null => {
+    if (!canUseStorage()) return null;
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  removeItem: (key: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+};
+
 interface RouteGuardProps {
   children: React.ReactNode;
   requireAuth?: boolean;
@@ -24,12 +54,13 @@ export default function RouteGuard({
 
   useEffect(() => {
     if (loading) return; // Wait for auth state to load
+    if (!canUseStorage()) return; // Skip on server
 
     // Enhanced validation for inconsistent states
     const validateAndCleanup = () => {
       // Check for potentially corrupted session state
-      const mpvSession = sessionStorage.getItem('mpv');
-      const hasSessionData = !!(mpvSession || sessionStorage.getItem('sessionKey'));
+      const mpvSession = safeSessionStorage.getItem('mpv');
+      const hasSessionData = !!(mpvSession || safeSessionStorage.getItem('sessionKey'));
       
       // If we have session storage markers but no authentication state, clean up
       if (hasSessionData && !user) {
@@ -42,9 +73,9 @@ export default function RouteGuard({
       if (user && hasSessionData && mpvSession === 'verified' && !masterPasswordVerified) {
         console.warn('Inconsistent master password verification state detected');
         // Clear stale master password verification
-        sessionStorage.removeItem('mpv');
-        sessionStorage.removeItem('sessionKey');
-        sessionStorage.removeItem('encryptedMasterPassword');
+        safeSessionStorage.removeItem('mpv');
+        safeSessionStorage.removeItem('sessionKey');
+        safeSessionStorage.removeItem('encryptedMasterPassword');
         return true;
       }
       

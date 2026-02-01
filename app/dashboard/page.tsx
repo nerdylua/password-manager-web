@@ -46,6 +46,28 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import toast from 'react-hot-toast';
 import ErrorModal from '@/components/ErrorModal';
 
+// SSR-safe check for browser environment - lazy check to avoid issues during module initialization
+const canUseStorage = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.sessionStorage === 'undefined') return false;
+  if (typeof window.sessionStorage.getItem !== 'function') return false;
+  if (typeof window.sessionStorage.setItem !== 'function') return false;
+  if (typeof window.sessionStorage.removeItem !== 'function') return false;
+  return true;
+};
+
+// SSR-safe sessionStorage wrapper
+const safeSessionStorage = {
+  setItem: (key: string, value: string): void => {
+    if (!canUseStorage()) return;
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+};
+
 // Lightweight dashboard data interface
 interface DashboardData {
   vaultItems: VaultItem[];
@@ -872,13 +894,13 @@ function DashboardContent() {
   }, [lockVault, router]);
 
   const navigateToVault = useCallback(() => {
-    sessionStorage.setItem('vaultAccessAuthorized', 'true');
+    safeSessionStorage.setItem('vaultAccessAuthorized', 'true');
     router.push('/vault');
   }, [router]);
 
   const navigateToVaultWithSecurityHighlight = useCallback(() => {
-    sessionStorage.setItem('vaultAccessAuthorized', 'true');
-    sessionStorage.setItem('highlightSecurityIssues', 'true');
+    safeSessionStorage.setItem('vaultAccessAuthorized', 'true');
+    safeSessionStorage.setItem('highlightSecurityIssues', 'true');
     router.push('/vault?highlight=security');
   }, [router]);
 
